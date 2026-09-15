@@ -228,7 +228,7 @@ def _generate_with_patterns(request: SqlValidationRequest) -> SqlValidationRespo
                     description=f"Finds rows where {column} is null or blank, though the requirement says it's required.",
                     sql=(
                         f"SELECT * FROM {table}\n"
-                        f"WHERE {column} IS NULL;"
+                        f"WHERE {column} IS NULL OR TRIM({column}) = '';"
                     ),
                     rule_detected="required_not_null",
                     requirement_reference=request.requirement_id,

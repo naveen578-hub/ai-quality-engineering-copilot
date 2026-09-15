@@ -216,6 +216,7 @@ def test_sql_validation_applies_each_constraint_only_to_its_stated_columns(clien
     assert "common_intake_id" in validations[1]["sql"]
     assert "patient_id" in validations[2]["sql"]
     assert "IS NULL" in validations[2]["sql"]
+    assert "TRIM(patient_id) = ''" in validations[2]["sql"]
     assert "patient_id, COUNT" not in validations[0]["sql"]
 
 
