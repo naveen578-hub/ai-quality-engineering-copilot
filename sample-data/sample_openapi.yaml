@@ -1,0 +1,26 @@
+openapi: 3.0.0
+info:
+  title: Synthetic Patient Search API
+  version: 1.0.0
+security:
+  - bearerAuth: []
+paths:
+  /patients/search:
+    get:
+      operationId: searchPatients
+      summary: Search for a patient by member ID
+      parameters:
+        - name: memberId
+          in: query
+          required: true
+          schema:
+            type: string
+            minimum: 8
+            maximum: 12
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Invalid member ID
+        "401":
+          description: Unauthorized

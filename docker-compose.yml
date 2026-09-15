@@ -1,0 +1,54 @@
+# NOTE: written carefully but NOT verified with a real `docker build`/`docker
+# compose up` in the environment this was developed in (no `docker` binary
+# available there). What *was* verified: backend/requirements.txt installs
+# cleanly and the full test suite passes in a genuinely fresh Python venv
+# (same dependency-resolution step `docker build` would do), and the
+# frontend builds cleanly with `npm ci && npm run build` (same steps the
+# frontend Dockerfile's build stage runs). The Docker-specific pieces
+# (multi-stage build, nginx reverse proxy, compose networking, healthchecks)
+# are new and should be smoke-tested with `docker compose up --build` before
+# relying on them. See README "Docker" section.
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - qe_copilot_data:/app/data
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      # Required, no insecure fallback here (unlike the app's own dev-only
+      # default) — docker-compose is the "this might actually get deployed"
+      # path, so force a real value via .env rather than silently using one.
+      QE_COPILOT_JWT_SECRET: "${QE_COPILOT_JWT_SECRET:?Set QE_COPILOT_JWT_SECRET in a .env file (see .env.example). Generate one with 'openssl rand -hex 32'}"
+      QE_COPILOT_TOKEN_EXPIRE_MINUTES: ${QE_COPILOT_TOKEN_EXPIRE_MINUTES:-60}
+      QE_COPILOT_ADMIN_USERNAME: ${QE_COPILOT_ADMIN_USERNAME:-admin}
+      QE_COPILOT_ADMIN_PASSWORD: ${QE_COPILOT_ADMIN_PASSWORD:-changeme123}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  qe_copilot_data:
+    # Named volume so the test-case library and vector store survive
+    # `docker compose down` / container recreation. Use `docker compose down
+    # -v` to actually wipe it (e.g. to reset the demo to a clean state).

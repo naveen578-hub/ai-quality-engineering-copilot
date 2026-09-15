@@ -1,0 +1,13 @@
+REQ-001: The system shall allow an authorized user with regular FEP (Federal Employee
+Program) access to search for a patient by member ID and view the patient's record.
+
+REQ-002: Users without FEP access shall be denied access to FEP patient records and
+shall see a generic "access denied" message that does not reveal whether the member
+ID exists.
+
+REQ-003: Member ID search shall accept alphanumeric IDs between 8 and 12 characters.
+IDs outside this length shall be rejected with a validation error before any lookup
+is attempted.
+
+Note: This is synthetic, portfolio-only sample data. No real member IDs, patient
+information, or proprietary system details are included.
