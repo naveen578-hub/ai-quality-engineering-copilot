@@ -39,6 +39,8 @@ from backend.models.schemas import (
     EndpointSummary,
     GenerateTestCasesRequest,
     HealthResponse,
+    HelpChatRequest,
+    HelpChatResponse,
     OpenApiSpecSummary,
     OpenApiUploadResponse,
     PersistedTestCase,
@@ -86,6 +88,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.post("/api/v1/help/chat", response_model=HelpChatResponse, tags=["help"])
+def help_chat(payload: HelpChatRequest) -> HelpChatResponse:
+    """Answers product-usage questions without exposing application data or secrets."""
+    from backend.generators.help_chat import answer_help_question
+
+    return answer_help_question(payload)
 
 
 @app.get("/health", response_model=HealthResponse, tags=["meta"])

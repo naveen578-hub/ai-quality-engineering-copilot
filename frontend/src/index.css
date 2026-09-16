@@ -120,6 +120,23 @@ header h1 {
   font-size: 0.78rem;
 }
 
+/* ---- In-product help ---- */
+.help-chat { position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 10; }
+.help-chat-toggle { border-radius: 999px; background: var(--teal-dark); color: white; box-shadow: 0 8px 24px rgba(26, 32, 39, 0.18); }
+.help-chat-toggle span { margin-left: 0.25rem; }
+.help-chat-panel { width: min(360px, calc(100vw - 2rem)); height: min(520px, calc(100vh - 7rem)); margin-bottom: 0.65rem; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 16px 40px rgba(26, 32, 39, 0.2); display: flex; flex-direction: column; overflow: hidden; }
+.help-chat-heading { padding: 0.8rem 1rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
+.chat-close { background: none; color: var(--slate-500); padding: 0; font-size: 1.2rem; }
+.help-chat-messages { flex: 1; overflow-y: auto; padding: 0.85rem; display: flex; flex-direction: column; gap: 0.65rem; }
+.help-message { max-width: 90%; padding: 0.55rem 0.7rem; border-radius: 6px; font-size: 0.82rem; }
+.help-message p { margin: 0; }
+.help-message-assistant { align-self: flex-start; background: var(--slate-100); }
+.help-message-user { align-self: flex-end; background: #e4f2ee; color: var(--teal-dark); }
+.help-suggestion { display: block; margin-top: 0.45rem; width: 100%; text-align: left; background: white; color: var(--teal-dark); border: 1px solid var(--border); padding: 0.35rem 0.5rem; font-size: 0.75rem; }
+.help-chat-form { display: flex; gap: 0.4rem; padding: 0.7rem; border-top: 1px solid var(--border); }
+.help-chat-form input { min-width: 0; flex: 1; }
+.help-chat-form button { padding: 0.5rem 0.7rem; }
+
 /* ---- Header user badge ---- */
 
 .header-top-row {

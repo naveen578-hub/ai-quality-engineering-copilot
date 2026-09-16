@@ -184,6 +184,19 @@ export interface SqlValidationRequest {
   requirement_id?: string;
 }
 
+export interface HelpChatRequest {
+  question: string;
+  surface: "signin" | "workspace";
+  active_area?: string;
+  role?: Role;
+}
+
+export interface HelpChatResponse {
+  answer: string;
+  suggestions: string[];
+  mode: string;
+}
+
 export interface SqlValidation {
   description: string;
   sql: string;

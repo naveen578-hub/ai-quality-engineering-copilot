@@ -252,6 +252,22 @@ class SqlValidationResponse(BaseModel):
     )
 
 
+# ---- In-product help assistant ----
+
+
+class HelpChatRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=1000)
+    surface: str = Field(default="workspace", pattern="^(signin|workspace)$")
+    active_area: Optional[str] = Field(default=None, max_length=80)
+    role: Optional[str] = Field(default=None, max_length=20)
+
+
+class HelpChatResponse(BaseModel):
+    answer: str
+    suggestions: List[str] = Field(default_factory=list)
+    mode: str = "local"
+
+
 # ---- Phase 4: authentication and roles ----
 
 

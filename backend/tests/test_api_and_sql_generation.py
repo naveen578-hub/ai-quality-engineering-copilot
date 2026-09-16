@@ -229,3 +229,28 @@ def test_sql_validation_requires_an_actual_table_name(client):
     body = resp.json()
     assert body["validations"] == []
     assert "actual database table name" in body["unmatched_note"]
+
+
+def test_help_chat_answers_signin_questions_without_authentication(client):
+    resp = client.post(
+        "/api/v1/help/chat",
+        json={"question": "I forgot my password", "surface": "signin"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "administrator" in body["answer"]
+    assert body["suggestions"]
+
+
+def test_help_chat_uses_workspace_role_and_area_context(client):
+    resp = client.post(
+        "/api/v1/help/chat",
+        json={
+            "question": "Why is my button disabled?",
+            "surface": "workspace",
+            "active_area": "sql",
+            "role": "viewer",
+        },
+    )
+    assert resp.status_code == 200
+    assert "read-only" in resp.json()["answer"]

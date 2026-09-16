@@ -5,6 +5,8 @@ import type {
   DocumentUploadResponse,
   GenerateTestCasesRequest,
   HealthResponse,
+  HelpChatRequest,
+  HelpChatResponse,
   OpenApiSpecSummary,
   OpenApiUploadResponse,
   PersistedTestCase,
@@ -248,6 +250,15 @@ export async function generateSqlValidations(payload: SqlValidationRequest): Pro
     body: JSON.stringify(payload),
   });
   return parseJsonOrThrow<SqlValidationResponse>(res);
+}
+
+export async function askHelp(payload: HelpChatRequest): Promise<HelpChatResponse> {
+  const res = await apiFetch("/api/v1/help/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parseJsonOrThrow<HelpChatResponse>(res);
 }
 
 // ---- Phase 4: observability ----

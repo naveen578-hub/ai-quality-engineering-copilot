@@ -12,6 +12,7 @@ import { SqlValidationPanel } from "./components/SqlValidationPanel";
 import { LoginForm } from "./components/LoginForm";
 import { UsersPanel } from "./components/UsersPanel";
 import { UsagePanel } from "./components/UsagePanel";
+import { HelpChat } from "./components/HelpChat";
 import { useAuth } from "./auth/AuthContext";
 import {
   checkHealth,
@@ -37,7 +38,7 @@ export default function App() {
   }
 
   if (!user) {
-    return <LoginForm />;
+    return <><LoginForm /><HelpChat surface="signin" /></>;
   }
 
   return <AuthenticatedApp username={user.username} role={user.role} onLogout={logout} />;
@@ -257,6 +258,7 @@ function AuthenticatedApp({
           requirements, patient data, or proprietary content.
         </p>
       </footer>
+      <HelpChat surface="workspace" role={role as "viewer" | "tester" | "admin"} activeArea={activeTab} />
     </div>
   );
 }
