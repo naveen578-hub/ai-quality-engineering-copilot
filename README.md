@@ -14,10 +14,9 @@ sample data.
 > generation, authentication/RBAC, PII masking, retry/usage tracking, an
 > automated RAG evaluation harness, and Docker/CI configuration are all in
 > place. Backend tests (61), an evaluation harness, and a live-browser e2e
-> suite (21 checks) all pass. The Docker/CI configuration is carefully
-> written and validated as far as possible without a `docker` binary in this
-> environment — see [Docker](#docker) below for exactly what was and wasn't
-> checked. Public demo deployment is a manual step (see [Roadmap](#roadmap)).
+> suite (21 checks) all pass. Docker Compose has been built and smoke-tested
+> with both containers healthy. Public demo deployment is a manual step (see
+> [Roadmap](#roadmap)).
 
 ## What works right now
 
@@ -433,11 +432,13 @@ Frontend on `http://localhost:3000` (nginx, reverse-proxying `/api` and
 `openssl rand -hex 32` and put it in `.env` before running, or Compose will
 refuse to start the backend service.
 
-**Honest verification status:** the Docker/Compose configuration was
-written carefully but **could not be built or run in the environment this
-was developed in — there is no `docker` binary available there.** What
-*was* verified, as a faithful substitute for the parts Docker itself would
-do:
+**Verification status:** Both images were built with `docker compose build`,
+then started with `docker compose up -d`. The backend and frontend containers
+reported healthy; `/health` returned mock/local embedding status and the
+frontend returned HTTP 200 on port 3000. The frontend healthcheck uses the
+IPv4 loopback address to avoid an Alpine `wget` IPv6 localhost mismatch.
+
+Previously verified before Docker was available:
 - `backend/requirements.txt` installs cleanly and the full 61-test backend
   suite passes in a genuinely fresh Python virtualenv (the same
   dependency-resolution step `docker build` performs for the backend image).
@@ -455,13 +456,6 @@ do:
   syntax-validated (YAML parsing caught and fixed a real bug: an unquoted
   colon inside an error message broke YAML parsing).
 
-**Not verified:** an actual `docker build`/`docker compose up` — the
-multi-stage build steps, apt package availability for
-chromadb/pymupdf's C-extension dependencies inside the `python:3.12-slim`
-image, nginx routing behavior, container networking, and the healthchecks
-have not been run for real. Please run `docker compose up --build` and
-report back before treating this as production-verified — that gap is
-called out deliberately rather than glossed over.
 
 ## Project structure
 
@@ -529,9 +523,8 @@ ai-quality-engineering-copilot/
       not Langfuse as originally planned — see note below)
 - [x] Automated RAG evaluation suite (retrieval Hit@1/Hit@3/MRR + end-to-end citation
       verification, runnable standalone and as part of the test suite/CI)
-- [x] Docker + GitHub Actions CI (written, YAML/config-validated, dependency installation
-      verified in a fresh venv/npm install — **not yet verified with a real `docker build`**,
-      see [Docker](#docker) for exactly what that means)
+- [x] Docker + GitHub Actions CI (Docker images built and Compose smoke-tested with
+  healthy backend/frontend containers)
 - [ ] Public demo deployment (synthetic data only) — the one item that genuinely requires
       a human with cloud/hosting credentials; see note below
 
