@@ -137,6 +137,28 @@ header h1 {
 .help-chat-form input { min-width: 0; flex: 1; }
 .help-chat-form button { padding: 0.5rem 0.7rem; }
 
+/* ---- Visual QA comparison ---- */
+.visual-compare-panel { max-width: 920px; }
+.panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+.panel-heading h2 { margin: 0; font-size: 1.15rem; }
+.panel-heading p { margin: 0.25rem 0 0; color: var(--slate-500); }
+.visual-compare-form { display: grid; gap: 0.8rem; background: white; border: 1px solid var(--border); border-radius: 6px; padding: 1rem; }
+.visual-compare-form label { display: grid; gap: 0.3rem; color: var(--slate-700); font-size: 0.78rem; font-weight: 600; }
+.visual-upload { display: block !important; border: 1px dashed var(--teal); color: var(--teal-dark) !important; padding: 1rem; text-align: center; cursor: pointer; font-size: 0.88rem !important; }
+.visual-compare-form textarea { resize: vertical; }
+.visual-results { margin-top: 1.25rem; }
+.visual-summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.75rem 1rem; padding: 1rem; background: var(--slate-900); color: white; border-radius: 6px; }
+.visual-summary strong { font-family: var(--mono); font-size: 1.6rem; color: #8bd3c2; }
+.visual-summary span { font-size: 0.78rem; color: #d7dee5; }
+.visual-check-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 0.7rem; margin-top: 0.8rem; }
+.visual-check { background: white; border: 1px solid var(--border); border-left: 4px solid var(--slate-300); border-radius: 4px; padding: 0.75rem; }
+.visual-check-pass { border-left-color: var(--teal); }
+.visual-check-fail { border-left-color: var(--red); }
+.visual-check-warning { border-left-color: var(--amber); }
+.visual-check div { display: flex; align-items: center; gap: 0.45rem; }
+.visual-check p { margin: 0.45rem 0; font-size: 0.8rem; color: var(--slate-700); }
+.visual-check small { display: block; color: var(--slate-500); font-family: var(--mono); font-size: 0.68rem; overflow-wrap: anywhere; }
+
 /* ---- Header user badge ---- */
 
 .header-top-row {

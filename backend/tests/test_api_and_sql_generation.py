@@ -254,3 +254,13 @@ def test_help_chat_uses_workspace_role_and_area_context(client):
     )
     assert resp.status_code == 200
     assert "read-only" in resp.json()["answer"]
+
+
+def test_visual_compare_rejects_non_http_live_urls(client):
+    resp = client.post(
+        "/api/v1/visual-compare",
+        files={"reference": ("figma.png", b"not-an-image", "image/png")},
+        data={"url": "file:///tmp/page.html", "viewport_width": "1440", "viewport_height": "900"},
+    )
+    assert resp.status_code == 422
+    assert "http://" in resp.json()["detail"]

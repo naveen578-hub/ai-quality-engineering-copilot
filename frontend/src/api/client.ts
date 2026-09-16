@@ -7,6 +7,7 @@ import type {
   HealthResponse,
   HelpChatRequest,
   HelpChatResponse,
+  VisualCompareResponse,
   OpenApiSpecSummary,
   OpenApiUploadResponse,
   PersistedTestCase,
@@ -259,6 +260,30 @@ export async function askHelp(payload: HelpChatRequest): Promise<HelpChatRespons
     body: JSON.stringify(payload),
   });
   return parseJsonOrThrow<HelpChatResponse>(res);
+}
+
+export async function compareVisual(payload: {
+  reference: File;
+  url: string;
+  viewport_width: number;
+  viewport_height: number;
+  expected_text?: string;
+  numeric_values?: string;
+  flyout_selector?: string;
+  expected_flyout_text?: string;
+  pagination_selector?: string;
+  expected_page?: string;
+}): Promise<VisualCompareResponse> {
+  const form = new FormData();
+  form.append("reference", payload.reference);
+  form.append("url", payload.url);
+  form.append("viewport_width", String(payload.viewport_width));
+  form.append("viewport_height", String(payload.viewport_height));
+  for (const key of ["expected_text", "numeric_values", "flyout_selector", "expected_flyout_text", "pagination_selector", "expected_page"] as const) {
+    if (payload[key]) form.append(key, payload[key] as string);
+  }
+  const res = await apiFetch("/api/v1/visual-compare", { method: "POST", body: form });
+  return parseJsonOrThrow<VisualCompareResponse>(res);
 }
 
 // ---- Phase 4: observability ----

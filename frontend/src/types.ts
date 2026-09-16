@@ -197,6 +197,26 @@ export interface HelpChatResponse {
   mode: string;
 }
 
+export interface VisualCheck {
+  category: string;
+  label: string;
+  status: string;
+  expected?: string | null;
+  actual?: string | null;
+  detail: string;
+}
+
+export interface VisualCompareResponse {
+  url: string;
+  viewport_width: number;
+  viewport_height: number;
+  reference_width: number;
+  reference_height: number;
+  pixel_difference_percent: number;
+  checks: VisualCheck[];
+  limitations: string[];
+}
+
 export interface SqlValidation {
   description: string;
   sql: string;

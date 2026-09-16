@@ -13,6 +13,7 @@ import { LoginForm } from "./components/LoginForm";
 import { UsersPanel } from "./components/UsersPanel";
 import { UsagePanel } from "./components/UsagePanel";
 import { HelpChat } from "./components/HelpChat";
+import { VisualComparePanel } from "./components/VisualComparePanel";
 import { useAuth } from "./auth/AuthContext";
 import {
   checkHealth,
@@ -24,7 +25,7 @@ import type { DocumentSummary, RetrievedChunk, TestCase, TestCaseType } from "./
 import "./index.css";
 
 type GenerateSubMode = "paste" | "documents";
-type TopLevelTab = "generate" | "library" | "traceability" | "analysis" | "api-tests" | "sql" | "users" | "usage";
+type TopLevelTab = "generate" | "visual-compare" | "library" | "traceability" | "analysis" | "api-tests" | "sql" | "users" | "usage";
 
 export default function App() {
   const { user, isLoading, logout } = useAuth();
@@ -58,6 +59,7 @@ function AuthenticatedApp({
 
   const tabs: Array<{ id: TopLevelTab; label: string }> = [
     { id: "generate", label: "Generate" },
+    { id: "visual-compare", label: "Visual QA Compare" },
     { id: "library", label: "Library" },
     { id: "traceability", label: "Traceability Matrix" },
     { id: "analysis", label: "Duplicate/Conflict Analysis" },
@@ -242,6 +244,8 @@ function AuthenticatedApp({
             />
           </>
         )}
+
+        {activeTab === "visual-compare" && <VisualComparePanel />}
 
         {activeTab === "library" && <LibraryPanel />}
         {activeTab === "traceability" && <TraceabilityMatrixPanel />}

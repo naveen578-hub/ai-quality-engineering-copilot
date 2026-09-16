@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.security import OAuth2PasswordRequestForm
@@ -58,6 +58,7 @@ from backend.models.schemas import (
     UpdateTestCaseRequest,
     UsageSummary,
     UserOut,
+    VisualCompareResponse,
 )
 from backend.observability.usage import get_usage_summary
 from backend.rag import openapi_store, store
@@ -96,6 +97,48 @@ def help_chat(payload: HelpChatRequest) -> HelpChatResponse:
     from backend.generators.help_chat import answer_help_question
 
     return answer_help_question(payload)
+
+
+@app.post(
+    "/api/v1/visual-compare",
+    response_model=VisualCompareResponse,
+    tags=["visual-compare"],
+    dependencies=[Depends(require_roles(*WRITE_ROLES))],
+)
+async def visual_compare(
+    reference: UploadFile = File(...),
+    url: str = Form(...),
+    viewport_width: int = Form(..., ge=320, le=3840),
+    viewport_height: int = Form(..., ge=240, le=2160),
+    expected_text: str = Form(default=""),
+    numeric_values: str = Form(default=""),
+    flyout_selector: Optional[str] = Form(default=None),
+    expected_flyout_text: Optional[str] = Form(default=None),
+    pagination_selector: Optional[str] = Form(default=None),
+    expected_page: Optional[str] = Form(default=None),
+) -> VisualCompareResponse:
+    from backend.generators.visual_compare import compare_visual_reference
+
+    if not url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=422, detail="The live URL must start with http:// or https://.")
+    reference_bytes = await reference.read()
+    if not reference_bytes:
+        raise HTTPException(status_code=400, detail="The Figma reference image is empty.")
+    try:
+        return compare_visual_reference(
+            reference_bytes,
+            url,
+            viewport_width,
+            viewport_height,
+            expected_text,
+            numeric_values,
+            flyout_selector,
+            expected_flyout_text,
+            pagination_selector,
+            expected_page,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Visual comparison failed: {exc}") from exc
 
 
 @app.get("/health", response_model=HealthResponse, tags=["meta"])

@@ -438,6 +438,26 @@ reported healthy; `/health` returned mock/local embedding status and the
 frontend returned HTTP 200 on port 3000. The frontend healthcheck uses the
 IPv4 loopback address to avoid an Alpine `wget` IPv6 localhost mismatch.
 
+## Visual QA Compare
+
+The authenticated **Visual QA Compare** tab compares a Figma frame export with
+a live URL at a chosen viewport. Upload a PNG/JPEG exported from Figma, enter
+the page URL, and provide the target width and height. The deterministic report
+includes:
+
+- viewport and reference-size mismatches
+- mean pixel difference for the shared screenshot area
+- expected text and numeric-value checks against live page text
+- optional flyout visibility/content checks using a CSS selector
+- optional pagination-state checks using a CSS selector and expected page text
+
+Live capture uses Playwright Chromium in the backend container. The result is
+an engineering signal, not a claim of semantic equivalence: screenshots must
+use the same viewport and pixel density, and selector-based checks require the
+developer to identify the relevant UI elements. An optional vision-model layer
+(OpenAI, Claude, or another provider) can be added later for semantic layout
+explanations; it is deliberately not required for the baseline comparison.
+
 Previously verified before Docker was available:
 - `backend/requirements.txt` installs cleanly and the full 61-test backend
   suite passes in a genuinely fresh Python virtualenv (the same

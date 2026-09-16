@@ -19,6 +19,7 @@ WORKDIR /app
 # code-only change.
 COPY backend/requirements.txt ./backend/requirements.txt
 RUN pip install --no-cache-dir -r backend/requirements.txt
+RUN playwright install --with-deps chromium
 
 COPY backend ./backend
 COPY sample-data ./sample-data

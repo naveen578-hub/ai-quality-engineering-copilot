@@ -268,6 +268,26 @@ class HelpChatResponse(BaseModel):
     mode: str = "local"
 
 
+class VisualCheck(BaseModel):
+    category: str
+    label: str
+    status: str
+    expected: Optional[str] = None
+    actual: Optional[str] = None
+    detail: str
+
+
+class VisualCompareResponse(BaseModel):
+    url: str
+    viewport_width: int
+    viewport_height: int
+    reference_width: int
+    reference_height: int
+    pixel_difference_percent: float
+    checks: List[VisualCheck]
+    limitations: List[str] = Field(default_factory=list)
+
+
 # ---- Phase 4: authentication and roles ----
 
 
