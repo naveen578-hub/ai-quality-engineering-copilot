@@ -1,4 +1,5 @@
 import type { TestCase } from "../types";
+import { downloadTestCaseReport } from "../utils/qaReport";
 
 interface Props {
   testCases: TestCase[];
@@ -73,6 +74,7 @@ export function TestCaseTable({ testCases, onSaveToLibrary, isSaving }: Props) {
             </button>
           )}
           <button onClick={() => downloadCsv(testCases)}>Export CSV</button>
+          <button onClick={() => downloadTestCaseReport(testCases)}>Export QA report</button>
         </div>
       </div>
 

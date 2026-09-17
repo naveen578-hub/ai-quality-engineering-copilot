@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { compareVisual } from "../api/client";
 import type { VisualCompareResponse } from "../types";
+import { downloadVisualReport } from "../utils/qaReport";
 
 export function VisualComparePanel() {
   const [reference, setReference] = useState<File | null>(null);
@@ -46,6 +47,6 @@ export function VisualComparePanel() {
       <button type="submit" disabled={isLoading || !reference || !url.trim()}>{isLoading ? "Comparing..." : "Compare live page"}</button>
     </form>
     {error && <div className="error-banner">{error}</div>}
-    {result && <div className="visual-results"><div className="visual-summary"><strong>{result.pixel_difference_percent}%</strong><span>mean pixel difference</span><span>{result.reference_width}×{result.reference_height} reference · {result.viewport_width}×{result.viewport_height} live viewport</span></div><div className="visual-check-grid">{result.checks.map((check) => <article className={`visual-check visual-check-${check.status}`} key={`${check.category}-${check.label}`}><div><span className="badge">{check.category}</span><strong>{check.label}</strong></div><p>{check.detail}</p>{check.expected && <small>Expected: {check.expected}</small>}{check.actual && <small>Actual: {check.actual}</small>}</article>)}</div><ul className="hint-text">{result.limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}</ul></div>}
+    {result && <div className="visual-results"><div className="visual-summary"><strong>{result.pixel_difference_percent}%</strong><span>mean pixel difference</span><span>{result.reference_width}×{result.reference_height} reference · {result.viewport_width}×{result.viewport_height} live viewport</span><button type="button" onClick={() => downloadVisualReport(result)}>Export QA report</button></div><div className="visual-check-grid">{result.checks.map((check) => <article className={`visual-check visual-check-${check.status}`} key={`${check.category}-${check.label}`}><div><span className="badge">{check.category}</span><strong>{check.label}</strong></div><p>{check.detail}</p>{check.expected && <small>Expected: {check.expected}</small>}{check.actual && <small>Actual: {check.actual}</small>}</article>)}</div><ul className="hint-text">{result.limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}</ul></div>}
   </section>;
 }
