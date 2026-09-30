@@ -50,6 +50,11 @@ jobs:
           unset OPENAI_API_KEY
           PYTHONPATH=. python evaluation/run_rag_eval.py
 
+      - name: Run execution adapter smoke checks
+        env:
+          QE_COPILOT_JWT_SECRET: ci-test-secret-not-for-prod
+        run: PYTHONPATH=. python -m backend.execution.ci_checks
+
   frontend:
     name: Frontend typecheck + build
     runs-on: ubuntu-latest

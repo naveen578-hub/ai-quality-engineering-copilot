@@ -158,6 +158,13 @@ header h1 {
 .visual-check div { display: flex; align-items: center; gap: 0.45rem; }
 .visual-check p { margin: 0.45rem 0; font-size: 0.8rem; color: var(--slate-700); }
 .visual-check small { display: block; color: var(--slate-500); font-family: var(--mono); font-size: 0.68rem; overflow-wrap: anywhere; }
+.execution-adapters { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0.8rem; }
+.execution-form { display: grid; align-content: start; gap: 0.7rem; padding: 1rem; background: white; border: 1px solid var(--border); border-radius: 6px; }
+.execution-form h3, .execution-results h3 { margin: 0; font-size: 0.95rem; }
+.execution-form label { display: grid; gap: 0.3rem; color: var(--slate-700); font-size: 0.78rem; font-weight: 600; }
+.execution-form textarea { resize: vertical; font-family: var(--mono); font-size: 0.78rem; }
+.execution-results { display: grid; gap: 0.6rem; margin-top: 1.25rem; }
+.execution-results .visual-check small { margin-top: 0.3rem; }
 
 /* ---- Header user badge ---- */
 

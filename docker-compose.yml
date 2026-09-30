@@ -28,6 +28,8 @@ services:
       QE_COPILOT_TOKEN_EXPIRE_MINUTES: ${QE_COPILOT_TOKEN_EXPIRE_MINUTES:-60}
       QE_COPILOT_ADMIN_USERNAME: ${QE_COPILOT_ADMIN_USERNAME:-admin}
       QE_COPILOT_ADMIN_PASSWORD: ${QE_COPILOT_ADMIN_PASSWORD:-changeme123}
+      QE_COPILOT_SQL_VALIDATION_DB_PATH: /app/data/validation.db
+      QE_ALLOW_PRIVATE_REST_TARGETS: ${QE_ALLOW_PRIVATE_REST_TARGETS:-false}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
       interval: 15s

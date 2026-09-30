@@ -1,4 +1,20 @@
-import type { TestCase, VisualCompareResponse } from "../types";
+import type { ExecutionResult, TestCase, VisualCompareResponse } from "../types";
+
+export function visualToExecutionResult(result: VisualCompareResponse): ExecutionResult {
+  const failures = result.checks.filter((check) => check.status === "fail");
+  return {
+    engine: "playwright",
+    status: failures.length ? "failed" : "passed",
+    name: `Visual comparison: ${result.url}`,
+    duration_ms: 0,
+    error: failures.map((check) => check.detail).join("; ") || null,
+    critical: true,
+    evidence: [
+      { kind: "visual", name: "pixel_difference_percent", value: String(result.pixel_difference_percent) },
+      ...result.checks.map((check) => ({ kind: "visual_check", name: check.label, value: check.status })),
+    ],
+  };
+}
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>'"]/g, (character) => ({
@@ -32,4 +48,18 @@ export function downloadVisualReport(result: VisualCompareResponse): void {
   const checks = result.checks.map((check) => `<article class="card ${escapeHtml(check.status)}"><strong>${escapeHtml(check.label)}</strong><p>${escapeHtml(check.detail)}</p>${check.expected ? `<div>Expected: <code>${escapeHtml(check.expected)}</code></div>` : ""}${check.actual ? `<div>Actual: <code>${escapeHtml(check.actual)}</code></div>` : ""}</article>`).join("");
   const limitations = result.limitations.map((limitation) => `<li>${escapeHtml(limitation)}</li>`).join("");
   downloadHtml(`visual-qa-report-${new Date().toISOString().slice(0, 10)}.html`, "Visual QA Comparison Report", `<h1>Visual QA Comparison Report</h1><p class="meta">${escapeHtml(result.url)} · Generated ${new Date().toLocaleString()}</p><h2>Summary</h2><p><strong>${result.pixel_difference_percent}%</strong> mean pixel difference</p><p>Reference: ${result.reference_width}×${result.reference_height} · Live viewport: ${result.viewport_width}×${result.viewport_height}</p><h2>Checks</h2>${checks}<h2>Limitations</h2><ul>${limitations}</ul>`);
+}
+
+export function downloadCombinedQaReport(input: { testCases?: TestCase[]; visual?: VisualCompareResponse; executionResults?: ExecutionResult[] }): void {
+  const sections: string[] = ["<h1>QA Execution Report</h1><p class=\"meta\">Generated " + escapeHtml(new Date().toLocaleString()) + "</p>"];
+  if (input.testCases?.length) {
+    sections.push(`<h2>Generated test cases (${input.testCases.length})</h2><ul>${input.testCases.map((testCase) => `<li><strong>${escapeHtml(testCase.id)} ${escapeHtml(testCase.title)}</strong> — ${escapeHtml(testCase.expected_result)}</li>`).join("")}</ul>`);
+  }
+  if (input.visual) {
+    sections.push(`<h2>Playwright visual comparison</h2><p>URL: ${escapeHtml(input.visual.url)} · Pixel difference: <strong>${input.visual.pixel_difference_percent}%</strong></p><ul>${input.visual.checks.map((check) => `<li><strong>${escapeHtml(check.status)}</strong> ${escapeHtml(check.label)} — ${escapeHtml(check.detail)}</li>`).join("")}</ul>`);
+  }
+  if (input.executionResults?.length) {
+    sections.push(`<h2>Execution results</h2><table><thead><tr><th>Engine</th><th>Name</th><th>Status</th><th>Duration</th><th>Error</th></tr></thead><tbody>${input.executionResults.map((result) => `<tr><td>${escapeHtml(result.engine)}</td><td>${escapeHtml(result.name)}</td><td>${escapeHtml(result.status)}</td><td>${result.duration_ms.toFixed(1)} ms</td><td>${escapeHtml(result.error ?? "")}</td></tr>`).join("")}</tbody></table>`);
+  }
+  downloadHtml(`qa-execution-report-${new Date().toISOString().slice(0, 10)}.html`, "QA Execution Report", sections.join(""));
 }

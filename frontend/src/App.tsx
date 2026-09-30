@@ -14,6 +14,7 @@ import { UsersPanel } from "./components/UsersPanel";
 import { UsagePanel } from "./components/UsagePanel";
 import { HelpChat } from "./components/HelpChat";
 import { VisualComparePanel } from "./components/VisualComparePanel";
+import { ExecutionPanel } from "./components/ExecutionPanel";
 import { useAuth } from "./auth/AuthContext";
 import {
   checkHealth,
@@ -21,11 +22,12 @@ import {
   generateTestCasesFromDocuments,
   saveTestCases,
 } from "./api/client";
-import type { DocumentSummary, RetrievedChunk, TestCase, TestCaseType } from "./types";
+import type { DocumentSummary, ExecutionResult, RetrievedChunk, TestCase, TestCaseType, VisualCompareResponse } from "./types";
+import { downloadCombinedQaReport, visualToExecutionResult } from "./utils/qaReport";
 import "./index.css";
 
 type GenerateSubMode = "paste" | "documents";
-type TopLevelTab = "generate" | "visual-compare" | "library" | "traceability" | "analysis" | "api-tests" | "sql" | "users" | "usage";
+type TopLevelTab = "generate" | "visual-compare" | "execution" | "library" | "traceability" | "analysis" | "api-tests" | "sql" | "users" | "usage";
 
 export default function App() {
   const { user, isLoading, logout } = useAuth();
@@ -60,6 +62,7 @@ function AuthenticatedApp({
   const tabs: Array<{ id: TopLevelTab; label: string }> = [
     { id: "generate", label: "Generate" },
     { id: "visual-compare", label: "Visual QA Compare" },
+    { id: "execution", label: "Execute Checks" },
     { id: "library", label: "Library" },
     { id: "traceability", label: "Traceability Matrix" },
     { id: "analysis", label: "Duplicate/Conflict Analysis" },
@@ -71,6 +74,8 @@ function AuthenticatedApp({
   const [activeTab, setActiveTab] = useState<TopLevelTab>("generate");
   const [inputMode, setInputMode] = useState<GenerateSubMode>("paste");
   const [testCases, setTestCases] = useState<TestCase[]>([]);
+  const [visualResult, setVisualResult] = useState<VisualCompareResponse | null>(null);
+  const [executionResults, setExecutionResults] = useState<ExecutionResult[]>([]);
   const [retrievedChunks, setRetrievedChunks] = useState<RetrievedChunk[]>([]);
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -152,6 +157,7 @@ function AuthenticatedApp({
         <div className="header-top-row">
           <h1>AI Quality Engineering Copilot</h1>
           <div className="user-badge">
+            {(testCases.length > 0 || visualResult || executionResults.length > 0) && <button type="button" className="small-button" onClick={() => downloadCombinedQaReport({ testCases, visual: visualResult ?? undefined, executionResults })}>Export combined QA report</button>}
             <span className="citation-tag">{username}</span>
             <span className={`status-pill status-${role === "admin" ? "approved" : "draft"}`}>{role}</span>
             <button type="button" className="small-button" onClick={onLogout}>
@@ -245,7 +251,8 @@ function AuthenticatedApp({
           </>
         )}
 
-        {activeTab === "visual-compare" && <VisualComparePanel />}
+        {activeTab === "visual-compare" && <VisualComparePanel onResult={(result) => { setVisualResult(result); setExecutionResults((previous) => [...previous, visualToExecutionResult(result)]); }} />}
+        {activeTab === "execution" && <ExecutionPanel results={executionResults} onResults={setExecutionResults} canWrite={canWrite} />}
 
         {activeTab === "library" && <LibraryPanel />}
         {activeTab === "traceability" && <TraceabilityMatrixPanel />}

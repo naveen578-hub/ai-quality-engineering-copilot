@@ -3,7 +3,7 @@ import { compareVisual } from "../api/client";
 import type { VisualCompareResponse } from "../types";
 import { downloadVisualReport } from "../utils/qaReport";
 
-export function VisualComparePanel() {
+export function VisualComparePanel({ onResult }: { onResult: (result: VisualCompareResponse) => void }) {
   const [reference, setReference] = useState<File | null>(null);
   const [url, setUrl] = useState("");
   const [width, setWidth] = useState(1440);
@@ -25,7 +25,9 @@ export function VisualComparePanel() {
     setIsLoading(true);
     setError(null);
     try {
-      setResult(await compareVisual({ reference, url: url.trim(), viewport_width: width, viewport_height: height, expected_text: expectedText, numeric_values: numbers, flyout_selector: flyoutSelector, expected_flyout_text: flyoutText, pagination_selector: paginationSelector, expected_page: expectedPage }));
+      const comparison = await compareVisual({ reference, url: url.trim(), viewport_width: width, viewport_height: height, expected_text: expectedText, numeric_values: numbers, flyout_selector: flyoutSelector, expected_flyout_text: flyoutText, pagination_selector: paginationSelector, expected_page: expectedPage });
+      setResult(comparison);
+      onResult(comparison);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Comparison failed.");
       setResult(null);

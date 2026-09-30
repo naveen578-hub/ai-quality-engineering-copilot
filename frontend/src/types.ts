@@ -217,6 +217,41 @@ export interface VisualCompareResponse {
   limitations: string[];
 }
 
+export interface ExecutionEvidence {
+  kind: string;
+  name: string;
+  value?: string | null;
+}
+
+export interface ExecutionResult {
+  engine: string;
+  status: string;
+  name: string;
+  duration_ms: number;
+  error?: string | null;
+  evidence: ExecutionEvidence[];
+  critical: boolean;
+}
+
+export interface ExecutionBatchResponse {
+  results: ExecutionResult[];
+  critical_failures: number;
+}
+
+export interface RestExecutionRequest {
+  url: string;
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS";
+  headers?: Record<string, string>;
+  body?: Record<string, unknown>;
+  assertions: Array<{ kind: "status_code" | "json_contains" | "text_contains"; expected: string }>;
+  critical: boolean;
+}
+
+export interface SqlExecutionRequest {
+  query: string;
+  critical: boolean;
+}
+
 export interface SqlValidation {
   description: string;
   sql: string;

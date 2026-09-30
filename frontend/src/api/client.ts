@@ -8,6 +8,9 @@ import type {
   HelpChatRequest,
   HelpChatResponse,
   VisualCompareResponse,
+  ExecutionBatchResponse,
+  RestExecutionRequest,
+  SqlExecutionRequest,
   OpenApiSpecSummary,
   OpenApiUploadResponse,
   PersistedTestCase,
@@ -284,6 +287,24 @@ export async function compareVisual(payload: {
   }
   const res = await apiFetch("/api/v1/visual-compare", { method: "POST", body: form });
   return parseJsonOrThrow<VisualCompareResponse>(res);
+}
+
+export async function executeRest(payload: RestExecutionRequest): Promise<ExecutionBatchResponse> {
+  const res = await apiFetch("/api/v1/execute/rest", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parseJsonOrThrow<ExecutionBatchResponse>(res);
+}
+
+export async function executeSql(payload: SqlExecutionRequest): Promise<ExecutionBatchResponse> {
+  const res = await apiFetch("/api/v1/execute/sql", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parseJsonOrThrow<ExecutionBatchResponse>(res);
 }
 
 // ---- Phase 4: observability ----

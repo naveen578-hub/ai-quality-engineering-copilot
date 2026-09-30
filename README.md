@@ -458,24 +458,36 @@ developer to identify the relevant UI elements. An optional vision-model layer
 (OpenAI, Claude, or another provider) can be added later for semantic layout
 explanations; it is deliberately not required for the baseline comparison.
 
-Previously verified before Docker was available:
-- `backend/requirements.txt` installs cleanly and the full 61-test backend
-  suite passes in a genuinely fresh Python virtualenv (the same
-  dependency-resolution step `docker build` performs for the backend image).
-  This is also how a real, non-hypothetical bug got caught: the pinned
-  FastAPI version in `requirements.txt` (0.115.0) was months older than
-  what this environment happens to have installed system-wide, and exposed
-  a genuine version-compatibility issue in one route declaration (a
-  `response_model` assertion around a `204 No Content` DELETE endpoint) that
-  every prior test run had been silently passing over. Fixed and confirmed
-  passing against both the pinned and the newer version.
-- `frontend`: `npm ci` from a completely empty `node_modules`, followed by
-  `npm run build`, both run cleanly and produce the same output as the
-  Dockerfile's build stage would.
-- `docker-compose.yml`, the CI workflow, and the nginx config were all
-  syntax-validated (YAML parsing caught and fixed a real bug: an unquoted
-  colon inside an error message broke YAML parsing).
+## Cross-engine execution
 
+The authenticated **Execute Checks** tab provides REST and read-only SQLite
+execution. Playwright visual comparisons are normalized into the same
+`ExecutionResult` contract. Results include engine, status, duration,
+criticality, errors, and evidence. The app-level **Export combined QA report**
+can combine generated test cases with visual and REST/SQL results.
+
+The execution endpoints are `POST /api/v1/execute/rest` and
+`POST /api/v1/execute/sql`. REST checks accept HTTP(S) public targets only by
+default, do not follow redirects, and allow status, text, or JSON-path
+assertions. For trusted local development only, set
+`QE_ALLOW_PRIVATE_REST_TARGETS=true` to allow loopback/private API targets.
+
+SQL checks accept exactly one `SELECT` and use SQLite read-only mode. They
+target a separate file configured with `QE_COPILOT_SQL_VALIDATION_DB_PATH`,
+not the copilot's users/library database. In Docker, put a read-only copy of
+the target database at `/app/data/validation.db` or configure that variable to
+the mounted path. A missing validation database is reported as `blocked`.
+
+CI can run the adapter smoke check with `python -m
+backend.execution.ci_checks`. To fail a workflow based on normalized execution
+results, save them as a JSON array or `{ "results": [...] }` and run:
+
+```bash
+python -m backend.execution.ci_checks --results execution-results.json
+```
+
+The command exits nonzero when any critical result is failed, blocked, or in
+error; noncritical failures and skipped results do not fail the job.
 
 ## Project structure
 

@@ -288,6 +288,49 @@ class VisualCompareResponse(BaseModel):
     limitations: List[str] = Field(default_factory=list)
 
 
+# ---- Cross-engine QA execution ----
+
+
+class ExecutionEvidence(BaseModel):
+    kind: str
+    name: str
+    value: Optional[str] = None
+
+
+class ExecutionResult(BaseModel):
+    engine: str
+    status: str
+    name: str
+    duration_ms: float = 0
+    error: Optional[str] = None
+    evidence: List[ExecutionEvidence] = Field(default_factory=list)
+    critical: bool = True
+
+
+class RestAssertion(BaseModel):
+    kind: str = Field(..., pattern="^(status_code|json_contains|text_contains)$")
+    expected: str
+
+
+class RestExecutionRequest(BaseModel):
+    url: str
+    method: str = Field(default="GET", pattern="^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)$")
+    headers: Dict[str, str] = Field(default_factory=dict)
+    body: Optional[Dict[str, object]] = None
+    assertions: List[RestAssertion] = Field(default_factory=list)
+    critical: bool = True
+
+
+class SqlExecutionRequest(BaseModel):
+    query: str
+    critical: bool = True
+
+
+class ExecutionBatchResponse(BaseModel):
+    results: List[ExecutionResult]
+    critical_failures: int
+
+
 # ---- Phase 4: authentication and roles ----
 
 

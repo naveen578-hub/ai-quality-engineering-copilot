@@ -6,9 +6,9 @@ import re
 from typing import List, Optional
 
 from PIL import Image, ImageChops, ImageStat
-from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, sync_playwright
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError, async_playwright
 
-from backend.models.schemas import VisualCheck, VisualCompareResponse
+from backend.models.schemas import ExecutionEvidence, ExecutionResult, VisualCheck, VisualCompareResponse
 
 
 def _tokens(value: str) -> List[str]:
@@ -49,7 +49,7 @@ def _check_numbers(body_text: str, values: str) -> List[VisualCheck]:
     return checks
 
 
-def compare_visual_reference(
+async def compare_visual_reference(
     reference_bytes: bytes,
     url: str,
     viewport_width: int,
@@ -62,21 +62,24 @@ def compare_visual_reference(
     expected_page: Optional[str] = None,
 ) -> VisualCompareResponse:
     reference = Image.open(io.BytesIO(reference_bytes)).convert("RGB")
-    with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=True)
-        page = browser.new_page(viewport={"width": viewport_width, "height": viewport_height}, device_scale_factor=1)
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(headless=True)
         try:
-            page.goto(url, wait_until="networkidle", timeout=30000)
-            page.wait_for_timeout(500)
-            screenshot = Image.open(io.BytesIO(page.screenshot(full_page=False))).convert("RGB")
-            body_text = page.locator("body").inner_text(timeout=5000)
+            page = await browser.new_page(
+                viewport={"width": viewport_width, "height": viewport_height},
+                device_scale_factor=1,
+            )
+            await page.goto(url, wait_until="networkidle", timeout=30000)
+            await page.wait_for_timeout(500)
+            screenshot = Image.open(io.BytesIO(await page.screenshot(full_page=False))).convert("RGB")
+            body_text = await page.locator("body").inner_text(timeout=5000)
             checks = _check_text(body_text, expected_text) + _check_numbers(body_text, numeric_values)
 
             if flyout_selector:
                 try:
                     flyout = page.locator(flyout_selector).first
-                    actual = flyout.inner_text(timeout=3000)
-                    visible = flyout.is_visible()
+                    actual = await flyout.inner_text(timeout=3000)
+                    visible = await flyout.is_visible()
                     expected = expected_flyout_text or "visible"
                     matches = visible and (not expected_flyout_text or expected_flyout_text.casefold() in actual.casefold())
                     checks.append(VisualCheck(category="flyout", label=f"Flyout: {flyout_selector}", status="pass" if matches else "fail", expected=expected, actual=actual[:300], detail="Flyout selector is visible and matches the expected content." if matches else "Flyout visibility or content does not match."))
@@ -85,13 +88,13 @@ def compare_visual_reference(
 
             if pagination_selector:
                 try:
-                    pagination = page.locator(pagination_selector).first.inner_text(timeout=3000)
+                    pagination = await page.locator(pagination_selector).first.inner_text(timeout=3000)
                     matches = not expected_page or expected_page.casefold() in pagination.casefold()
                     checks.append(VisualCheck(category="pagination", label=f"Pagination: {pagination_selector}", status="pass" if matches else "fail", expected=expected_page or "present", actual=pagination[:300], detail="Pagination state matches the expected page." if matches else "Pagination was found but the expected page was not present."))
                 except PlaywrightTimeoutError:
                     checks.append(VisualCheck(category="pagination", label=f"Pagination: {pagination_selector}", status="fail", expected=expected_page or "present", detail="Pagination selector was not found."))
         finally:
-            browser.close()
+            await browser.close()
 
     width = min(reference.width, screenshot.width)
     height = min(reference.height, screenshot.height)
@@ -110,4 +113,20 @@ def compare_visual_reference(
         pixel_difference_percent=round(mean_difference, 2),
         checks=checks,
         limitations=["Pixel comparison is a visual signal, not semantic proof.", "Text, numeric, flyout, and pagination checks depend on the selectors/values supplied.", "Figma exports should use the same viewport and pixel density as the live capture."],
+    )
+
+
+def visual_compare_to_execution(result: VisualCompareResponse) -> ExecutionResult:
+    failed_checks = [check for check in result.checks if check.status == "fail"]
+    evidence = [
+        ExecutionEvidence(kind="visual", name="pixel_difference_percent", value=str(result.pixel_difference_percent)),
+        *[ExecutionEvidence(kind="visual_check", name=check.label, value=check.status) for check in result.checks],
+    ]
+    return ExecutionResult(
+        engine="playwright",
+        status="failed" if failed_checks else "passed",
+        name=f"Visual comparison: {result.url}",
+        error="; ".join(check.detail for check in failed_checks) if failed_checks else None,
+        evidence=evidence,
+        critical=True,
     )

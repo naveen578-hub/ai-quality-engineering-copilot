@@ -29,6 +29,7 @@ from backend.generators.requirement_analysis import analyze_requirements
 from backend.generators.sql_validation_generator import SqlGenerationError, generate_sql_validations
 from backend.generators.test_case_generator import GenerationError, generate_test_cases
 from backend.generators.traceability import build_traceability_matrix
+from backend.execution.results import critical_failure_count
 from backend.guardrails.pii import scan_and_mask
 from backend.models import db
 from backend.models.schemas import (
@@ -59,6 +60,9 @@ from backend.models.schemas import (
     UsageSummary,
     UserOut,
     VisualCompareResponse,
+    ExecutionBatchResponse,
+    RestExecutionRequest,
+    SqlExecutionRequest,
 )
 from backend.observability.usage import get_usage_summary
 from backend.rag import openapi_store, store
@@ -125,7 +129,7 @@ async def visual_compare(
     if not reference_bytes:
         raise HTTPException(status_code=400, detail="The Figma reference image is empty.")
     try:
-        return compare_visual_reference(
+        return await compare_visual_reference(
             reference_bytes,
             url,
             viewport_width,
@@ -139,6 +143,22 @@ async def visual_compare(
         )
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"Visual comparison failed: {exc}") from exc
+
+
+@app.post("/api/v1/execute/rest", response_model=ExecutionBatchResponse, tags=["execution"], dependencies=[Depends(require_roles(*WRITE_ROLES))])
+async def execute_rest_endpoint(payload: RestExecutionRequest) -> ExecutionBatchResponse:
+    from backend.execution.rest_adapter import execute_rest
+
+    result = await execute_rest(payload)
+    return ExecutionBatchResponse(results=[result], critical_failures=critical_failure_count([result]))
+
+
+@app.post("/api/v1/execute/sql", response_model=ExecutionBatchResponse, tags=["execution"], dependencies=[Depends(require_roles(*WRITE_ROLES))])
+async def execute_sql_endpoint(payload: SqlExecutionRequest) -> ExecutionBatchResponse:
+    from backend.execution.sql_adapter import execute_sql
+
+    result = await execute_sql(payload)
+    return ExecutionBatchResponse(results=[result], critical_failures=critical_failure_count([result]))
 
 
 @app.get("/health", response_model=HealthResponse, tags=["meta"])
