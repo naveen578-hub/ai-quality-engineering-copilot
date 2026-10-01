@@ -61,6 +61,50 @@ def test_login_fails_for_unknown_user(unauthenticated_client):
     assert resp.status_code == 401
 
 
+def test_login_is_rate_limited_and_throttle_is_audited(unauthenticated_client, tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "rate-limit.db"))
+
+    for _ in range(5):
+        response = unauthenticated_client.post(
+            "/api/v1/auth/login", data={"username": "rate-limit-account", "password": "wrong"}
+        )
+        assert response.status_code == 401
+
+    throttled = unauthenticated_client.post(
+        "/api/v1/auth/login", data={"username": "rate-limit-account", "password": "wrong"}
+    )
+    assert throttled.status_code == 429
+    assert throttled.headers["Retry-After"] == "900"
+    events = db.list_audit_events()
+    assert events[0]["action"] == "auth.login_throttled"
+    assert "rate-limit-account" not in events[0]["details_json"]
+
+
+def test_admin_audit_log_contains_successful_signin_and_denies_viewer(unauthenticated_client, tmp_path, monkeypatch):
+    from backend.auth.security import create_access_token, hash_password
+    from backend.models.schemas import Role
+
+    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "audit.db"))
+    db.create_user("audit_admin", hash_password("audit-password-123"), Role.admin.value)
+    login = unauthenticated_client.post(
+        "/api/v1/auth/login", data={"username": "audit_admin", "password": "audit-password-123"}
+    )
+    assert login.status_code == 200
+    admin_token = login.json()["access_token"]
+    audit = unauthenticated_client.get(
+        "/api/v1/audit-log", headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    assert audit.status_code == 200
+    assert audit.json()[0]["action"] == "auth.login_succeeded"
+
+    db.create_user("audit_viewer", hash_password("viewer-password-123"), Role.viewer.value)
+    viewer_token = create_access_token(subject="audit_viewer", role="viewer")
+    forbidden = unauthenticated_client.get(
+        "/api/v1/audit-log", headers={"Authorization": f"Bearer {viewer_token}"}
+    )
+    assert forbidden.status_code == 403
+
+
 # ---- Unauthenticated access ----
 
 
@@ -133,6 +177,8 @@ def test_only_admin_can_approve_a_test_case(unauthenticated_client, tester_heade
     )
     assert admin_approve_resp.status_code == 200
     assert admin_approve_resp.json()["status"] == "approved"
+    audit = unauthenticated_client.get("/api/v1/audit-log", headers=admin_headers).json()
+    assert any(event["action"] == "test_case.approved" and event["actor"] == "conftest_admin" for event in audit)
 
 
 def test_only_admin_can_delete(unauthenticated_client, tester_headers, admin_headers):
@@ -147,6 +193,8 @@ def test_only_admin_can_delete(unauthenticated_client, tester_headers, admin_hea
 
     admin_delete_resp = unauthenticated_client.delete(f"/api/v1/test-cases/{db_id}", headers=admin_headers)
     assert admin_delete_resp.status_code == 204
+    audit = unauthenticated_client.get("/api/v1/audit-log", headers=admin_headers).json()
+    assert any(event["action"] == "test_case.deleted" and event["target_id"] == str(db_id) for event in audit)
 
 
 def test_only_admin_can_manage_users(unauthenticated_client, tester_headers, admin_headers):
@@ -164,6 +212,8 @@ def test_only_admin_can_manage_users(unauthenticated_client, tester_headers, adm
     )
     assert admin_resp.status_code == 200
     assert admin_resp.json()["role"] == "viewer"
+    audit = unauthenticated_client.get("/api/v1/audit-log", headers=admin_headers).json()
+    assert any(event["action"] == "user.created" and event["target_id"] == str(admin_resp.json()["id"]) for event in audit)
 
 
 def test_only_admin_can_view_usage_summary(unauthenticated_client, viewer_headers, tester_headers, admin_headers):

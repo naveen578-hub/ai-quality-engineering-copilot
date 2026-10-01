@@ -1,5 +1,6 @@
 import type {
   ApiTestGenerateRequest,
+  AuditEventOut,
   CreateUserRequest,
   DocumentSummary,
   DocumentUploadResponse,
@@ -127,6 +128,11 @@ export async function createUser(payload: CreateUserRequest): Promise<UserOut> {
 export async function listUsers(): Promise<UserOut[]> {
   const res = await apiFetch("/api/v1/auth/users");
   return parseJsonOrThrow<UserOut[]>(res);
+}
+
+export async function fetchAuditLog(limit = 200): Promise<AuditEventOut[]> {
+  const res = await apiFetch(`/api/v1/audit-log?limit=${encodeURIComponent(String(limit))}`);
+  return parseJsonOrThrow<AuditEventOut[]>(res);
 }
 
 export async function generateTestCases(

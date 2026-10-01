@@ -600,9 +600,15 @@ as possible once it's smoke-tested for real.
   dependency, with the frontend reflecting (not just relying on) those
   boundaries. No endpoint trusts a role claimed by an old JWT without
   re-checking the live database — see `backend/auth/dependencies.py`.
-- **Known gaps, stated plainly rather than glossed over:** no rate limiting
-  on the auth endpoints (a real deployment should add one against
-  brute-force login attempts); no audit log of who approved/deleted what;
-  the demo admin password is a well-known default until someone changes it
-  (loudly warned about at startup, but the warning doesn't stop it from
-  working).
+- **Login throttling:** failed sign-ins are limited to five attempts per
+  normalized username in a 15-minute window. Attempt keys are one-way hashes;
+  raw usernames and client addresses are not written into the throttle audit
+  event. A multi-replica deployment should move this counter to shared storage.
+- **Audit log:** successful/throttled sign-ins, user creation, and test-case
+  updates/approvals/deletions are persisted and visible in the admin-only Audit
+  Log tab and `GET /api/v1/audit-log`. The log is append-only through the app
+  API, but production deployments should define retention and tamper-resistant
+  archival.
+- **Demo credentials:** the demo admin password is a well-known default until
+  changed. The app warns at startup; deployments must set a strong admin
+  password and JWT secret before first launch.

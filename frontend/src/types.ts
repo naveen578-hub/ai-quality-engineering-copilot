@@ -275,6 +275,16 @@ export interface UserOut {
   created_at: string;
 }
 
+export interface AuditEventOut {
+  id: number;
+  actor: string;
+  action: string;
+  target_type: string;
+  target_id: string | null;
+  details: Record<string, unknown>;
+  created_at: string;
+}
+
 export interface TokenResponse {
   access_token: string;
   token_type: string;

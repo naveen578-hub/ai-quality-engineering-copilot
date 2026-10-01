@@ -58,6 +58,23 @@ CREATE TABLE IF NOT EXISTS llm_usage (
     estimated_cost_usd REAL NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS login_failures (
+    username_key TEXT NOT NULL,
+    occurred_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_login_failures_user_time ON login_failures(username_key, occurred_at);
+
+CREATE TABLE IF NOT EXISTS audit_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    actor TEXT NOT NULL,
+    action TEXT NOT NULL,
+    target_type TEXT NOT NULL,
+    target_id TEXT,
+    details_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_audit_events_created ON audit_events(created_at DESC);
 """
 
 
@@ -269,3 +286,50 @@ def reset_usage() -> None:
     """Used by tests."""
     with _connect() as conn:
         conn.execute("DELETE FROM llm_usage")
+
+
+# ---- Login throttling and audit trail ----
+
+
+def record_login_failure(username_key: str, occurred_at: str, window_start: str) -> int:
+    with _connect() as conn:
+        conn.execute("DELETE FROM login_failures WHERE occurred_at < ?", (window_start,))
+        conn.execute(
+            "INSERT INTO login_failures (username_key, occurred_at) VALUES (?, ?)",
+            (username_key, occurred_at),
+        )
+        return int(
+            conn.execute(
+                "SELECT COUNT(*) FROM login_failures WHERE username_key = ? AND occurred_at >= ?",
+                (username_key, window_start),
+            ).fetchone()[0]
+        )
+
+
+def clear_login_failures(username_key: str) -> None:
+    with _connect() as conn:
+        conn.execute("DELETE FROM login_failures WHERE username_key = ?", (username_key,))
+
+
+def add_audit_event(
+    actor: str,
+    action: str,
+    target_type: str,
+    target_id: Optional[str] = None,
+    details: Optional[dict] = None,
+) -> int:
+    with _connect() as conn:
+        cursor = conn.execute(
+            "INSERT INTO audit_events (actor, action, target_type, target_id, details_json, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (actor, action, target_type, target_id, json.dumps(details or {}, default=str), _now()),
+        )
+        return int(cursor.lastrowid)
+
+
+def list_audit_events(limit: int = 200) -> List[sqlite3.Row]:
+    bounded_limit = max(1, min(limit, 1000))
+    with _connect() as conn:
+        return conn.execute(
+            "SELECT * FROM audit_events ORDER BY id DESC LIMIT ?", (bounded_limit,)
+        ).fetchall()

@@ -11,9 +11,12 @@ Then:
 """
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import List, Optional
+from datetime import datetime, timedelta, timezone
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.security import OAuth2PasswordRequestForm
@@ -34,6 +37,7 @@ from backend.guardrails.pii import scan_and_mask
 from backend.models import db
 from backend.models.schemas import (
     ApiTestGenerateRequest,
+    AuditEventOut,
     CreateUserRequest,
     DocumentSummary,
     DocumentUploadResponse,
@@ -174,12 +178,40 @@ def health() -> HealthResponse:
 
 # ---- Phase 4: authentication ----
 
+LOGIN_FAILURE_WINDOW_MINUTES = 15
+MAX_FAILED_LOGIN_ATTEMPTS = 5
+
+
+def _login_username_key(username: str) -> str:
+    return hashlib.sha256(username.strip().casefold().encode("utf-8")).hexdigest()
+
 
 @app.post("/api/v1/auth/login", response_model=TokenResponse, tags=["auth"])
-def login(form_data: OAuth2PasswordRequestForm = Depends()) -> TokenResponse:
+def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends()) -> TokenResponse:
+    now = datetime.now(timezone.utc)
+    window_start = now - timedelta(minutes=LOGIN_FAILURE_WINDOW_MINUTES)
+    username_key = _login_username_key(form_data.username)
     user = authenticate(form_data.username, form_data.password)
     if user is None:
+        failures = db.record_login_failure(username_key, now.isoformat(), window_start.isoformat())
+        if failures == MAX_FAILED_LOGIN_ATTEMPTS + 1:
+            source = request.client.host if request.client else "unknown"
+            source_key = hashlib.sha256(source.encode("utf-8")).hexdigest()
+            db.add_audit_event(
+                actor="anonymous",
+                action="auth.login_throttled",
+                target_type="account",
+                details={"username_key": username_key[:16], "source_key": source_key[:16]},
+            )
+        if failures > MAX_FAILED_LOGIN_ATTEMPTS:
+            raise HTTPException(
+                status_code=429,
+                detail="Too many failed sign-in attempts. Try again after 15 minutes.",
+                headers={"Retry-After": str(LOGIN_FAILURE_WINDOW_MINUTES * 60)},
+            )
         raise HTTPException(status_code=401, detail="Incorrect username or password", headers={"WWW-Authenticate": "Bearer"})
+    db.clear_login_failures(username_key)
+    db.add_audit_event(actor=user.username, action="auth.login_succeeded", target_type="account", target_id=str(user.id))
     token = create_access_token(subject=user.username, role=user.role.value)
     return TokenResponse(access_token=token, role=user.role, username=user.username)
 
@@ -189,10 +221,21 @@ def get_me(current_user: UserOut = Depends(get_current_user)) -> UserOut:
     return current_user
 
 
-@app.post("/api/v1/auth/users", response_model=UserOut, tags=["auth"], dependencies=[Depends(require_roles(*ADMIN_ONLY))])
-def create_new_user(payload: CreateUserRequest) -> UserOut:
+@app.post("/api/v1/auth/users", response_model=UserOut, tags=["auth"])
+def create_new_user(
+    payload: CreateUserRequest,
+    current_user: UserOut = Depends(require_roles(*ADMIN_ONLY)),
+) -> UserOut:
     try:
-        return create_user(payload.username, payload.password, payload.role)
+        created = create_user(payload.username, payload.password, payload.role)
+        db.add_audit_event(
+            actor=current_user.username,
+            action="user.created",
+            target_type="user",
+            target_id=str(created.id),
+            details={"username": created.username, "role": created.role.value},
+        )
+        return created
     except AuthError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -330,6 +373,16 @@ def update_saved_test_case(
     updated = db.update_test_case(db_id, payload)
     if updated is None:
         raise HTTPException(status_code=404, detail=f"No saved test case with id {db_id}")
+    action = "test_case.approved" if payload.status == TestCaseStatus.approved else (
+        "test_case.rejected" if payload.status == TestCaseStatus.rejected else "test_case.updated"
+    )
+    db.add_audit_event(
+        actor=current_user.username,
+        action=action,
+        target_type="test_case",
+        target_id=str(db_id),
+        details={"changed_fields": sorted(payload.model_fields_set)},
+    )
     return updated
 
 
@@ -338,11 +391,40 @@ def update_saved_test_case(
     status_code=204,
     response_model=None,
     tags=["library"],
-    dependencies=[Depends(require_roles(*ADMIN_ONLY))],
 )
-def delete_saved_test_case(db_id: int) -> None:
+def delete_saved_test_case(
+    db_id: int,
+    current_user: UserOut = Depends(require_roles(*ADMIN_ONLY)),
+) -> None:
     if not db.delete_test_case(db_id):
         raise HTTPException(status_code=404, detail=f"No saved test case with id {db_id}")
+    db.add_audit_event(
+        actor=current_user.username,
+        action="test_case.deleted",
+        target_type="test_case",
+        target_id=str(db_id),
+    )
+
+
+@app.get(
+    "/api/v1/audit-log",
+    response_model=List[AuditEventOut],
+    tags=["audit"],
+    dependencies=[Depends(require_roles(*ADMIN_ONLY))],
+)
+def audit_log(limit: int = Query(default=200, ge=1, le=1000)) -> List[AuditEventOut]:
+    return [
+        AuditEventOut(
+            id=row["id"],
+            actor=row["actor"],
+            action=row["action"],
+            target_type=row["target_type"],
+            target_id=row["target_id"],
+            details=json.loads(row["details_json"]),
+            created_at=row["created_at"],
+        )
+        for row in db.list_audit_events(limit)
+    ]
 
 
 @app.get(

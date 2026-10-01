@@ -15,6 +15,7 @@ import { UsagePanel } from "./components/UsagePanel";
 import { HelpChat } from "./components/HelpChat";
 import { VisualComparePanel } from "./components/VisualComparePanel";
 import { ExecutionPanel } from "./components/ExecutionPanel";
+import { AuditLogPanel } from "./components/AuditLogPanel";
 import { useAuth } from "./auth/AuthContext";
 import {
   checkHealth,
@@ -27,7 +28,7 @@ import { downloadCombinedQaReport, visualToExecutionResult } from "./utils/qaRep
 import "./index.css";
 
 type GenerateSubMode = "paste" | "documents";
-type TopLevelTab = "generate" | "visual-compare" | "execution" | "library" | "traceability" | "analysis" | "api-tests" | "sql" | "users" | "usage";
+type TopLevelTab = "generate" | "visual-compare" | "execution" | "library" | "traceability" | "analysis" | "api-tests" | "sql" | "users" | "usage" | "audit";
 
 export default function App() {
   const { user, isLoading, logout } = useAuth();
@@ -68,7 +69,7 @@ function AuthenticatedApp({
     { id: "analysis", label: "Duplicate/Conflict Analysis" },
     { id: "api-tests", label: "API Tests (OpenAPI)" },
     { id: "sql", label: "SQL Validations" },
-    ...(isAdmin ? [{ id: "users" as TopLevelTab, label: "Users" }, { id: "usage" as TopLevelTab, label: "Usage" }] : []),
+    ...(isAdmin ? [{ id: "users" as TopLevelTab, label: "Users" }, { id: "usage" as TopLevelTab, label: "Usage" }, { id: "audit" as TopLevelTab, label: "Audit Log" }] : []),
   ];
 
   const [activeTab, setActiveTab] = useState<TopLevelTab>("generate");
@@ -261,6 +262,7 @@ function AuthenticatedApp({
         {activeTab === "sql" && <SqlValidationPanel />}
         {activeTab === "users" && isAdmin && <UsersPanel />}
         {activeTab === "usage" && isAdmin && <UsagePanel />}
+        {activeTab === "audit" && isAdmin && <AuditLogPanel />}
       </main>
 
       <footer>

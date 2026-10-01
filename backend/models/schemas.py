@@ -382,6 +382,16 @@ class UsageSummary(BaseModel):
     by_endpoint: List[UsageByEndpoint]
 
 
+class AuditEventOut(BaseModel):
+    id: int
+    actor: str
+    action: str
+    target_type: str
+    target_id: Optional[str] = None
+    details: Dict[str, object] = Field(default_factory=dict)
+    created_at: str
+
+
 # ---- Phase 4: PII guardrail ----
 
 
