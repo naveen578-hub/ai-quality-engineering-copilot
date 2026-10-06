@@ -61,6 +61,82 @@ export interface DocumentUploadResponse {
   document: DocumentSummary;
   chunks: DocumentChunkSummary[];
   embedding_mode: "llm" | "mock";
+  impact_count: number;
+}
+
+export interface RequirementImpactTestCase {
+  db_id: number;
+  id: string;
+  title: string;
+  status: TestCaseStatus;
+}
+
+export interface RequirementImpact {
+  impact_id: number;
+  filename: string;
+  requirement_id: string;
+  change_type: "added" | "modified" | "removed";
+  old_text: string | null;
+  new_text: string | null;
+  previous_document_id: string | null;
+  current_document_id: string;
+  reviewed: boolean;
+  reviewed_at: string | null;
+  affected_test_cases: RequirementImpactTestCase[];
+}
+
+export interface UnlinkedTestCase {
+  db_id: number;
+  id: string;
+  title: string;
+  requirement_reference: string;
+  status: TestCaseStatus;
+}
+
+export interface RequirementImpactReport {
+  impacts: RequirementImpact[];
+  unlinked_test_cases: UnlinkedTestCase[];
+}
+
+export interface TestRunIngestResponse {
+  run_batch_id: string;
+  accepted_count: number;
+  idempotent_replay: boolean;
+}
+
+export type TestHealthClassification = "stable" | "flaky" | "failing" | "inconclusive" | "insufficient_data";
+export type TestRunStatus = "passed" | "failed" | "blocked" | "error" | "skipped";
+
+export interface TestHealthSummary {
+  identity_type: "test_case" | "test_key";
+  test_case_db_id: number | null;
+  test_key: string | null;
+  test_case_public_id: string | null;
+  name: string;
+  total_run_count: number;
+  decisive_run_count: number;
+  pass_rate: number | null;
+  flip_count: number | null;
+  current_streak_status: TestRunStatus | null;
+  current_streak_count: number | null;
+  classification: TestHealthClassification;
+}
+
+export interface TestRunHistoryItem {
+  id: number;
+  engine: "playwright" | "rest" | "sql" | "manual";
+  status: TestRunStatus;
+  duration_ms: number;
+  run_batch_id: string;
+  error_summary: string | null;
+  recorded_at: string;
+  batch_result_count: number;
+  batch_failure_count: number;
+}
+
+export interface TestHealthDetail {
+  health: TestHealthSummary;
+  history: TestRunHistoryItem[];
 }
 
 export interface RetrievedChunk {

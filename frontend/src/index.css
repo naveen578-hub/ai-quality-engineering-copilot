@@ -1227,3 +1227,25 @@ button:disabled { background: #dfe6e1 !important; color: #8d9b96 !important; box
 
 .quality-result { margin: 0.6rem 0; padding: 0.6rem 0.8rem; border: 1px solid currentColor; border-radius: 6px; font-size: 0.9rem; }
 .quality-result ul { margin: 0.4rem 0 0; padding-left: 1.1rem; }
+.impact-list { display: grid; gap: 0.75rem; }
+.impact-card { margin: 0; }
+.impact-card .small-button { margin-top: 0.7rem; }
+.impact-reviewed { border-left: 3px solid var(--teal); }
+.impact-kind { padding: 0.15rem 0.45rem; border-radius: 3px; font-size: 0.72rem; font-weight: 700; text-transform: capitalize; }
+.impact-added { color: #07584f; background: #e4f2ee; }
+.impact-modified { color: #78400e; background: #fff1da; }
+.impact-removed { color: #8d3028; background: #fbecea; }
+.impact-text { margin: 0.45rem 0; overflow-wrap: anywhere; }
+.impact-cases { margin-top: 0.7rem; padding-top: 0.6rem; border-top: 1px solid var(--border); font-size: 0.85rem; }
+.impact-cases p, .impact-cases ul, .unlinked-cases ul { margin: 0.3rem 0 0; padding-left: 1.2rem; }
+.impact-cases span, .unlinked-cases span { color: var(--slate-700); }
+.unlinked-cases { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.health-identity { padding: 0; border: 0; background: none; color: var(--teal-dark); text-align: left; font-weight: 700; }
+.test-health-panel td small { display: block; color: var(--slate-700); font-size: 0.72rem; }
+.health-classification { display: inline-block; border-radius: 4px; padding: 0.12rem 0.45rem; font-size: 0.72rem; font-weight: 700; text-transform: capitalize; white-space: nowrap; }
+.health-flaky { color: #78400e; background: #fff1da; }
+.health-failing { color: #8d3028; background: #fbecea; }
+.health-stable { color: #07584f; background: #e4f2ee; }
+.health-inconclusive, .health-insufficient_data { color: #34433f; background: #eaf0eb; }
+.health-row-selected { outline: 2px solid var(--teal); outline-offset: -2px; }
+.health-history { margin-top: 1.5rem; }

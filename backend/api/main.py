@@ -38,6 +38,7 @@ from backend.generators.sql_validation_generator import SqlGenerationError, gene
 from backend.generators.test_case_generator import GenerationError, generate_test_cases
 from backend.generators.traceability import build_traceability_matrix
 from backend.execution.results import critical_failure_count
+from backend.execution.test_health import minimum_decisive_runs, score_test_health
 from backend.guardrails.pii import scan_and_mask
 from backend.models import db
 from backend.models.schemas import (
@@ -75,6 +76,10 @@ from backend.models.schemas import (
     ExecutionBatchResponse,
     RestExecutionRequest,
     SqlExecutionRequest,
+    TestHealthDetail,
+    TestHealthSummary,
+    TestRunIngestRequest,
+    TestRunIngestResponse,
 )
 from backend.observability.usage import get_usage_summary
 from backend.rag import openapi_store, store
@@ -171,6 +176,94 @@ async def execute_sql_endpoint(payload: SqlExecutionRequest) -> ExecutionBatchRe
 
     result = await execute_sql(payload)
     return ExecutionBatchResponse(results=[result], critical_failures=critical_failure_count([result]))
+
+
+@app.post(
+    "/api/v1/test-runs/ingest",
+    response_model=TestRunIngestResponse,
+    tags=["test-health"],
+    dependencies=[Depends(require_roles(*WRITE_ROLES))],
+)
+def ingest_test_runs(payload: TestRunIngestRequest) -> TestRunIngestResponse:
+    try:
+        accepted_count, idempotent_replay = db.ingest_test_run_batch(payload)
+    except ValueError as exc:
+        status_code = 409 if "different payload" in str(exc) else 422
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return TestRunIngestResponse(
+        run_batch_id=payload.run_batch_id,
+        accepted_count=accepted_count,
+        idempotent_replay=idempotent_replay,
+    )
+
+
+@app.get(
+    "/api/v1/test-runs/health",
+    response_model=List[TestHealthSummary],
+    tags=["test-health"],
+    dependencies=[Depends(require_roles(*ANY_ROLE))],
+)
+def test_run_health(
+    min_runs: Optional[int] = Query(default=None, ge=1, le=20),
+) -> List[TestHealthSummary]:
+    threshold = min_runs if min_runs is not None else minimum_decisive_runs()
+    return [
+        score_test_health(identity, db.get_test_run_history(
+            test_case_db_id=identity["test_case_db_id"],
+            test_key=identity["test_key"],
+        ), min_runs=threshold)
+        for identity in db.list_test_run_identities()
+    ]
+
+
+def _test_health_detail(
+    identity: dict,
+    test_case_db_id: Optional[int],
+    test_key: Optional[str],
+    min_runs: Optional[int],
+) -> TestHealthDetail:
+    history = db.get_test_run_history(test_case_db_id=test_case_db_id, test_key=test_key)
+    threshold = min_runs if min_runs is not None else minimum_decisive_runs()
+    return TestHealthDetail(
+        health=score_test_health(identity, history, min_runs=threshold),
+        history=history,
+    )
+
+
+@app.get(
+    "/api/v1/test-runs/health/test-case/{test_case_db_id}",
+    response_model=TestHealthDetail,
+    tags=["test-health"],
+    dependencies=[Depends(require_roles(*ANY_ROLE))],
+)
+def test_case_run_health(
+    test_case_db_id: int,
+    min_runs: Optional[int] = Query(default=None, ge=1, le=20),
+) -> TestHealthDetail:
+    identity = db.get_test_case_identity(test_case_db_id)
+    if identity is None:
+        raise HTTPException(status_code=404, detail="Saved test case not found.")
+    identity.update(identity_type="test_case", total_run_count=len(db.get_test_run_history(test_case_db_id=test_case_db_id)))
+    return _test_health_detail(identity, test_case_db_id, None, min_runs)
+
+
+@app.get(
+    "/api/v1/test-runs/health/key/{test_key:path}",
+    response_model=TestHealthDetail,
+    tags=["test-health"],
+    dependencies=[Depends(require_roles(*ANY_ROLE))],
+)
+def keyed_run_health(
+    test_key: str,
+    min_runs: Optional[int] = Query(default=None, ge=1, le=20),
+) -> TestHealthDetail:
+    identity = next(
+        (item for item in db.list_test_run_identities() if item["identity_type"] == "test_key" and item["test_key"] == test_key),
+        None,
+    )
+    if identity is None:
+        raise HTTPException(status_code=404, detail="Test key history not found.")
+    return _test_health_detail(identity, None, test_key, min_runs)
 
 
 @app.get("/health", response_model=HealthResponse, tags=["meta"])

@@ -4,6 +4,7 @@ import type {
   CreateUserRequest,
   DocumentSummary,
   DocumentUploadResponse,
+  ExecutionResult,
   GenerateTestCasesRequest,
   HealthResponse,
   HelpChatRequest,
@@ -18,6 +19,8 @@ import type {
   RagGenerateRequest,
   RagGenerateResponse,
   RequirementAnalysisResponse,
+  RequirementImpact,
+  RequirementImpactReport,
   SaveTestCasesRequest,
   SqlValidationRequest,
   SqlValidationResponse,
@@ -25,6 +28,9 @@ import type {
   TestCaseStatus,
   TokenResponse,
   TraceabilityMatrix,
+  TestRunIngestResponse,
+  TestHealthDetail,
+  TestHealthSummary,
   UpdateTestCaseRequest,
   UsageSummary,
   UserOut,
@@ -158,6 +164,23 @@ export async function uploadDocument(file: File): Promise<DocumentUploadResponse
 export async function listDocuments(): Promise<DocumentSummary[]> {
   const res = await apiFetch("/api/v1/documents");
   return parseJsonOrThrow<DocumentSummary[]>(res);
+}
+
+export async function fetchRequirementImpacts(): Promise<RequirementImpactReport> {
+  const res = await apiFetch("/api/v1/requirement-impacts");
+  return parseJsonOrThrow<RequirementImpactReport>(res);
+}
+
+export async function setRequirementImpactReviewed(
+  impactId: number,
+  reviewed: boolean,
+): Promise<RequirementImpact> {
+  const res = await apiFetch(`/api/v1/requirement-impacts/${impactId}/review`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reviewed }),
+  });
+  return parseJsonOrThrow<RequirementImpact>(res);
 }
 
 export async function generateTestCasesFromDocuments(
@@ -340,6 +363,45 @@ export async function executeSql(payload: SqlExecutionRequest): Promise<Executio
     body: JSON.stringify(payload),
   });
   return parseJsonOrThrow<ExecutionBatchResponse>(res);
+}
+
+export async function ingestTestRun(
+  runBatchId: string,
+  result: ExecutionResult,
+  testKey: string,
+): Promise<TestRunIngestResponse> {
+  const normalizedStatus = ["passed", "failed", "blocked", "error", "skipped"].includes(result.status)
+    ? result.status
+    : "error";
+  const res = await apiFetch("/api/v1/test-runs/ingest", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      run_batch_id: runBatchId,
+      results: [{
+        test_key: testKey,
+        engine: result.engine,
+        status: normalizedStatus,
+        duration_ms: Math.max(0, Math.round(result.duration_ms)),
+        error_summary: result.error ?? undefined,
+      }],
+    }),
+  });
+  return parseJsonOrThrow<TestRunIngestResponse>(res);
+}
+
+export async function fetchTestHealth(minRuns?: number): Promise<TestHealthSummary[]> {
+  const params = minRuns ? `?min_runs=${encodeURIComponent(String(minRuns))}` : "";
+  const res = await apiFetch(`/api/v1/test-runs/health${params}`);
+  return parseJsonOrThrow<TestHealthSummary[]>(res);
+}
+
+export async function fetchTestHealthDetail(identity: TestHealthSummary): Promise<TestHealthDetail> {
+  const path = identity.identity_type === "test_case"
+    ? `/api/v1/test-runs/health/test-case/${identity.test_case_db_id}`
+    : `/api/v1/test-runs/health/key/${encodeURIComponent(identity.test_key ?? "")}`;
+  const res = await apiFetch(path);
+  return parseJsonOrThrow<TestHealthDetail>(res);
 }
 
 // ---- Phase 4: observability ----

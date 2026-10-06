@@ -12,6 +12,7 @@ export function DocumentPanel({ onDocumentsChanged }: Props) {
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(async () => {
@@ -34,7 +35,12 @@ export function DocumentPanel({ onDocumentsChanged }: Props) {
     setIsUploading(true);
     setError(null);
     try {
-      await uploadDocument(file);
+      const result = await uploadDocument(file);
+      setUploadMessage(
+        result.impact_count > 0
+          ? `Upload indexed. ${result.impact_count} requirement change${result.impact_count === 1 ? "" : "s"} need review in Change Impact.`
+          : "Upload indexed. No requirement changes detected.",
+      );
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed.");
@@ -62,6 +68,7 @@ export function DocumentPanel({ onDocumentsChanged }: Props) {
       </div>
 
       {error && <div className="error-banner">{error}</div>}
+      {uploadMessage && <div className="success-banner" role="status">{uploadMessage}</div>}
 
       {documents.length === 0 ? (
         <p className="empty-state">

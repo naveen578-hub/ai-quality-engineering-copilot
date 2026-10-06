@@ -78,6 +78,19 @@ sample data.
   against *saved* test cases (not just generated-but-unsaved ones), showing
   which of the five test-case types exist for each requirement, which are
   missing, and an overall coverage percentage.
+- **Requirement-change impact review** — the first upload of a filename
+  establishes a baseline; later uploads compare requirement IDs and text.
+  Modified and removed requirements list linked saved cases, and added
+  requirements are surfaced as uncovered until cases are linked. Review
+  state is independent of draft/approved/rejected status. The authenticated
+  report is `GET /api/v1/requirement-impacts`; testers/admins can mark an
+  impact reviewed with `PATCH /api/v1/requirement-impacts/{impact_id}/review`.
+  Comparisons require explicit `REQ-...:` markers and match revisions by
+  filename, so use a stable filename when uploading a new document version.
+  Matching is exact by ID (case-insensitive): an ID rename appears as a
+  removal plus an addition, not as a detected rename. Text changes are
+  compared only for the same ID; there is no fuzzy cross-ID matching, and
+  paragraph-only documents without requirement markers cannot be revision-diffed.
 - **Duplicate/conflict detection** (`GET /api/v1/requirements/analysis`) —
   heuristic-based, and documented as such rather than presented as ground
   truth: duplicates are flagged by embedding cosine similarity above a
@@ -100,6 +113,23 @@ sample data.
   "Check testability" button on the Generate tab): deterministic heuristics
   that flag vague terms, missing negative paths, missing numbers/actors and
   compound statements before you generate from a weak requirement.
+- **Test health history** for CI and manual reporting: `POST
+  /api/v1/test-runs/ingest` accepts normalized result batches; `GET
+  /api/v1/test-runs/health` reports each explicit test identity, and the
+  `/test-case/{db_id}` or `/key/{test_key}` detail routes return its history.
+  The Execute Checks panel records REST/SQL outcomes automatically after the
+  operator enters a stable key; CI reporters can post batches directly.
+  Saved cases use their database ID; external tests require a caller-supplied
+  key. Those identity types are never merged. Replaying an identical batch is
+  idempotent; reusing its batch ID with changed data returns a conflict.
+  Health is a heuristic over the latest 20 decisive `passed`/`failed` runs
+  (minimum 5 by default; configurable with
+  `QE_COPILOT_TEST_HEALTH_MIN_RUNS`). `blocked`, `error`, and `skipped` stay in
+  history but do not affect pass rate or flips. Flaky requires pass rate
+  strictly above 10% and below 90%, plus at least 3 flips; consistent failures are classified as failing, while
+  mixed patterns that meet neither rule are inconclusive. Fewer than the
+  minimum decisive runs produces `insufficient_data`, with no score. This is
+  not a root-cause or outage detector; batch failure counts are context only.
 - 8 additional passing Pytest tests covering the save/edit/approve/delete
   lifecycle, status filtering, both export formats, traceability-matrix
   correctness (including a requirement that's fully covered and two that
@@ -553,6 +583,8 @@ ai-quality-engineering-copilot/
 - [x] SQL validation query generation
 - [x] Duplicate/conflicting requirement detection (heuristic, documented limits)
 - [x] Requirements-traceability matrix
+- [x] Requirement-change impact review (stable-filename revisions, explicit IDs, review marker independent of case status)
+- [x] Test-health history and heuristic flaky/failing classification (explicit identity, idempotent CI batches, run detail)
 - [x] CSV/JSON export (client-side for on-screen results; server-side for the saved library)
 - [x] Approve/edit workflow for generated tests (save, inline edit, approve/reject, delete)
 

@@ -7,6 +7,8 @@ import { RetrievedChunksPanel } from "./components/RetrievedChunksPanel";
 import { LibraryPanel } from "./components/LibraryPanel";
 import { TraceabilityMatrixPanel } from "./components/TraceabilityMatrixPanel";
 import { RequirementAnalysisPanel } from "./components/RequirementAnalysisPanel";
+import { RequirementImpactPanel } from "./components/RequirementImpactPanel";
+import { TestHealthPanel } from "./components/TestHealthPanel";
 import { OpenApiPanel } from "./components/OpenApiPanel";
 import { SqlValidationPanel } from "./components/SqlValidationPanel";
 import { LoginForm } from "./components/LoginForm";
@@ -28,7 +30,7 @@ import { downloadCombinedQaReport, visualToExecutionResult } from "./utils/qaRep
 import "./index.css";
 
 type GenerateSubMode = "paste" | "documents";
-type TopLevelTab = "generate" | "visual-compare" | "execution" | "library" | "traceability" | "analysis" | "api-tests" | "sql" | "users" | "usage" | "audit";
+type TopLevelTab = "generate" | "visual-compare" | "execution" | "library" | "traceability" | "change-impact" | "test-health" | "analysis" | "api-tests" | "sql" | "users" | "usage" | "audit";
 
 export default function App() {
   const { user, isLoading, logout } = useAuth();
@@ -66,6 +68,8 @@ function AuthenticatedApp({
     { id: "execution", label: "Execute Checks" },
     { id: "library", label: "Library" },
     { id: "traceability", label: "Traceability Matrix" },
+    { id: "change-impact", label: "Change Impact" },
+    { id: "test-health", label: "Test Health" },
     { id: "analysis", label: "Duplicate/Conflict Analysis" },
     { id: "api-tests", label: "API Tests (OpenAPI)" },
     { id: "sql", label: "SQL Validations" },
@@ -270,6 +274,8 @@ function AuthenticatedApp({
 
         {activeTab === "library" && <LibraryPanel />}
         {activeTab === "traceability" && <TraceabilityMatrixPanel />}
+        {activeTab === "change-impact" && <RequirementImpactPanel canReview={canWrite} />}
+        {activeTab === "test-health" && <TestHealthPanel />}
         {activeTab === "analysis" && <RequirementAnalysisPanel />}
         {activeTab === "api-tests" && <OpenApiPanel />}
         {activeTab === "sql" && <SqlValidationPanel />}
