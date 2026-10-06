@@ -57,6 +57,8 @@ from backend.models.schemas import (
     RagGenerateRequest,
     RagGenerateResponse,
     RequirementAnalysisResponse,
+    RequirementImpactReport,
+    RequirementImpactReviewRequest,
     Role,
     SaveTestCasesRequest,
     SqlValidationRequest,
@@ -66,6 +68,7 @@ from backend.models.schemas import (
     TokenResponse,
     TraceabilityMatrix,
     UpdateTestCaseRequest,
+    RequirementImpact,
     UsageSummary,
     UserOut,
     VisualCompareResponse,
@@ -295,7 +298,23 @@ async def upload_document(file: UploadFile = File(...)) -> DocumentUploadRespons
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
     try:
-        return ingest_document(file.filename or "unnamed", content)
+        response = ingest_document(file.filename or "unnamed", content)
+        chunks = store.get_document_chunks(response.document.document_id)
+        requirements = {
+            chunk["requirement_id"]: chunk["text"]
+            for chunk in chunks
+            if chunk.get("requirement_id")
+        }
+        response.impact_count = (
+            db.record_requirement_revision(
+                response.document.filename,
+                response.document.document_id,
+                requirements,
+            )
+            if requirements
+            else 0
+        )
+        return response
     except ExtractionError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except ValueError as exc:
@@ -310,6 +329,35 @@ async def upload_document(file: UploadFile = File(...)) -> DocumentUploadRespons
 )
 def list_documents() -> List[DocumentSummary]:
     return [DocumentSummary(**d) for d in store.list_documents()]
+
+
+@app.get(
+    "/api/v1/requirement-impacts",
+    response_model=RequirementImpactReport,
+    tags=["documents"],
+    dependencies=[Depends(require_roles(*ANY_ROLE))],
+)
+def requirement_impacts() -> RequirementImpactReport:
+    return RequirementImpactReport(**db.requirement_impact_report())
+
+
+@app.patch(
+    "/api/v1/requirement-impacts/{impact_id}/review",
+    response_model=RequirementImpact,
+    tags=["documents"],
+    dependencies=[Depends(require_roles(*WRITE_ROLES))],
+)
+def review_requirement_impact(
+    impact_id: int,
+    payload: RequirementImpactReviewRequest,
+) -> RequirementImpact:
+    if not db.mark_requirement_impact_reviewed(impact_id, payload.reviewed):
+        raise HTTPException(status_code=404, detail="Requirement impact not found.")
+    report = db.requirement_impact_report()
+    impact = next((item for item in report["impacts"] if item["impact_id"] == impact_id), None)
+    if impact is None:
+        raise HTTPException(status_code=404, detail="Requirement impact not found.")
+    return RequirementImpact(**impact)
 
 
 @app.post(

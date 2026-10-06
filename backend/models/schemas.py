@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class TestCaseType(str, Enum):
@@ -96,6 +96,7 @@ class DocumentUploadResponse(BaseModel):
     document: DocumentSummary
     chunks: List[DocumentChunkSummary]
     embedding_mode: str = Field(..., description="'llm' (OpenAI embeddings) or 'mock' (hashing fallback)")
+    impact_count: int = 0
     pii_redactions: Dict[str, int] = Field(
         default_factory=dict, description="Counts of PII-shaped content masked before storage, by category"
     )
@@ -169,6 +170,44 @@ class TraceabilityRow(BaseModel):
 class TraceabilityMatrix(BaseModel):
     rows: List[TraceabilityRow]
     coverage_percent: float = Field(..., description="% of indexed requirements with at least one test case")
+
+
+class RequirementImpactTestCase(BaseModel):
+    db_id: int
+    id: str
+    title: str
+    status: TestCaseStatus
+
+
+class RequirementImpact(BaseModel):
+    impact_id: int
+    filename: str
+    requirement_id: str
+    change_type: str
+    old_text: Optional[str] = None
+    new_text: Optional[str] = None
+    previous_document_id: Optional[str] = None
+    current_document_id: str
+    reviewed: bool = False
+    reviewed_at: Optional[str] = None
+    affected_test_cases: List[RequirementImpactTestCase] = Field(default_factory=list)
+
+
+class UnlinkedTestCase(BaseModel):
+    db_id: int
+    id: str
+    title: str
+    requirement_reference: str
+    status: TestCaseStatus
+
+
+class RequirementImpactReport(BaseModel):
+    impacts: List[RequirementImpact]
+    unlinked_test_cases: List[UnlinkedTestCase] = Field(default_factory=list)
+
+
+class RequirementImpactReviewRequest(BaseModel):
+    reviewed: bool = True
 
 
 class DuplicatePair(BaseModel):
@@ -329,6 +368,118 @@ class SqlExecutionRequest(BaseModel):
 class ExecutionBatchResponse(BaseModel):
     results: List[ExecutionResult]
     critical_failures: int
+
+
+class TestRunEngine(str, Enum):
+    playwright = "playwright"
+    rest = "rest"
+    sql = "sql"
+    manual = "manual"
+
+
+class TestRunStatus(str, Enum):
+    passed = "passed"
+    failed = "failed"
+    blocked = "blocked"
+    error = "error"
+    skipped = "skipped"
+
+
+class TestRunIngestResult(BaseModel):
+    test_case_db_id: Optional[int] = Field(default=None, gt=0)
+    test_key: Optional[str] = Field(default=None, min_length=1, max_length=300)
+    engine: TestRunEngine
+    status: TestRunStatus
+    duration_ms: int = Field(default=0, ge=0)
+    error_summary: Optional[str] = Field(default=None, max_length=500)
+
+    @field_validator("test_key")
+    @classmethod
+    def test_key_not_blank(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None and not value.strip():
+            raise ValueError("test_key cannot be blank")
+        return value.strip() if value is not None else None
+
+    @field_validator("error_summary")
+    @classmethod
+    def error_summary_is_short(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None:
+            return " ".join(value.split())[:500]
+        return None
+
+    @model_validator(mode="after")
+    def exactly_one_identity(self) -> "TestRunIngestResult":
+        if (self.test_case_db_id is None) == (self.test_key is None):
+            raise ValueError("provide exactly one of test_case_db_id or test_key")
+        return self
+
+
+class TestRunIngestRequest(BaseModel):
+    run_batch_id: str = Field(..., min_length=1, max_length=200)
+    results: List[TestRunIngestResult] = Field(..., min_length=1, max_length=1000)
+
+    @field_validator("run_batch_id")
+    @classmethod
+    def batch_id_not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("run_batch_id cannot be blank")
+        return value.strip()
+
+    @model_validator(mode="after")
+    def unique_test_identity_per_batch(self) -> "TestRunIngestRequest":
+        identities = [
+            ("case", result.test_case_db_id) if result.test_case_db_id is not None else ("key", result.test_key)
+            for result in self.results
+        ]
+        if len(identities) != len(set(identities)):
+            raise ValueError("each test identity may appear only once per run_batch_id")
+        return self
+
+
+class TestRunIngestResponse(BaseModel):
+    run_batch_id: str
+    accepted_count: int
+    idempotent_replay: bool
+
+
+class TestHealthClassification(str, Enum):
+    stable = "stable"
+    flaky = "flaky"
+    failing = "failing"
+    inconclusive = "inconclusive"
+    insufficient_data = "insufficient_data"
+
+
+class TestHealthSummary(BaseModel):
+    identity_type: str
+    test_case_db_id: Optional[int] = None
+    test_key: Optional[str] = None
+    test_case_public_id: Optional[str] = None
+    name: str
+    total_run_count: int
+    decisive_run_count: int
+    pass_rate: Optional[float] = None
+    flip_count: Optional[int] = None
+    current_streak_status: Optional[TestRunStatus] = None
+    current_streak_count: Optional[int] = None
+    classification: TestHealthClassification
+
+
+class TestRunHistoryItem(BaseModel):
+    id: int
+    engine: TestRunEngine
+    status: TestRunStatus
+    duration_ms: int
+    run_batch_id: str
+    error_summary: Optional[str] = None
+    recorded_at: str
+    batch_result_count: int
+    batch_failure_count: int
+
+
+class TestHealthDetail(BaseModel):
+    health: TestHealthSummary
+    history: List[TestRunHistoryItem]
 
 
 # ---- Phase 4: authentication and roles ----
