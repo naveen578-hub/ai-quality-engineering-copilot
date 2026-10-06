@@ -21,15 +21,32 @@ export function LoginForm() {
   }
 
   return (
-    <div className="login-screen">
+    <div className="login-screen" role="main">
+      <div className="login-atmosphere" aria-hidden="true">
+        <div className="speed-line speed-line-one" />
+        <div className="speed-line speed-line-two" />
+        <div className="speed-line speed-line-three" />
+        <div className="reactor-core"><span /></div>
+        <div className="garage-grid" />
+      </div>
+      <section className="login-showcase" aria-label="Quality engineering control bay">
+        <p className="eyebrow">NIGHT SHIFT / QUALITY CONTROL</p>
+        <h2>Ship with<br /><em>confidence.</em></h2>
+        <p className="showcase-copy">A pit wall for requirements, regressions, APIs, and every edge case hiding under the hood.</p>
+        <div className="telemetry-strip"><span>REQ</span><strong>100%</strong><span>TRACE</span><strong>LIVE</strong></div>
+        <div className="machine-signature"><span className="signature-dot" /><span>AI-QE / SYSTEM READY</span><span className="signature-line" /></div>
+      </section>
       <form className="login-form" onSubmit={handleSubmit}>
-        <h1>AI Quality Engineering Copilot</h1>
-        <p className="subtitle">Sign in to continue.</p>
+        <div className="login-brand"><span className="brand-mark">AQ</span><span>AI QE COPILOT</span><span className="brand-status">ONLINE</span></div>
+        <h1>Enter the<br /><span>control room.</span></h1>
+        <p className="subtitle">Authenticate to inspect, generate, and verify.</p>
 
         <label htmlFor="login-username">Username</label>
         <input
           id="login-username"
+          name="username"
           type="text"
+          autoComplete="username"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           autoFocus
@@ -38,12 +55,14 @@ export function LoginForm() {
         <label htmlFor="login-password">Password</label>
         <input
           id="login-password"
+          name="password"
           type="password"
+          autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
 
-        {error && <div className="error-banner">{error}</div>}
+        {error && <div className="error-banner" role="alert">{error}</div>}
 
         <button type="submit" disabled={isSubmitting || !username.trim() || !password}>
           {isSubmitting ? "Signing in..." : "Sign in"}

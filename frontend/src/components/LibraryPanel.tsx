@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import type { PersistedTestCase, TestCaseStatus } from "../types";
-import { deleteSavedTestCase, downloadExport, listSavedTestCases, updateSavedTestCase } from "../api/client";
+import {
+  deleteSavedTestCase,
+  downloadExport,
+  listSavedTestCases,
+  updateSavedTestCase,
+  type ExportFormat,
+} from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 
 const STATUS_FILTERS: Array<TestCaseStatus | "all"> = ["all", "draft", "approved", "rejected"];
@@ -60,7 +66,7 @@ export function LibraryPanel() {
     }
   }
 
-  async function handleExport(format: "csv" | "json") {
+  async function handleExport(format: ExportFormat) {
     try {
       await downloadExport(format, statusFilter === "all" ? undefined : statusFilter);
     } catch (err) {
@@ -78,6 +84,12 @@ export function LibraryPanel() {
           </button>
           <button type="button" onClick={() => handleExport("json")}>
             Export JSON
+          </button>
+          <button type="button" onClick={() => handleExport("gherkin")}>
+            Export Gherkin
+          </button>
+          <button type="button" onClick={() => handleExport("playwright")}>
+            Export Playwright
           </button>
         </div>
       </div>

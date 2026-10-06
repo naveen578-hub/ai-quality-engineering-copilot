@@ -25,7 +25,12 @@ from backend.auth.dependencies import ADMIN_ONLY, ANY_ROLE, WRITE_ROLES, get_cur
 from backend.auth.security import create_access_token
 from backend.auth.users import AuthError, authenticate, create_user, list_users, seed_default_admin_if_empty
 from backend.generators.api_test_generator import generate_api_test_cases
-from backend.generators.export import to_csv, to_json
+from backend.generators.export import to_csv, to_gherkin, to_json, to_playwright
+from backend.generators.requirement_quality import (
+    RequirementQualityRequest,
+    RequirementQualityResponse,
+    analyze_requirement_quality,
+)
 from backend.generators.llm_client import is_configured
 from backend.generators.rag_generator import RagGenerationError, generate_from_rag
 from backend.generators.requirement_analysis import analyze_requirements
@@ -475,6 +480,35 @@ def export_json(status: Optional[TestCaseStatus] = Query(default=None)) -> Respo
 
 
 # ---- Phase 3: OpenAPI-driven API test generation ----
+
+
+@app.get("/api/v1/export/gherkin", tags=["library"], dependencies=[Depends(require_roles(*ANY_ROLE))])
+def export_gherkin(status: Optional[TestCaseStatus] = Query(default=None)) -> Response:
+    return Response(
+        content=to_gherkin(db.list_test_cases(status=status)),
+        media_type="text/plain",
+        headers={"Content-Disposition": "attachment; filename=test-cases.feature"},
+    )
+
+
+@app.get("/api/v1/export/playwright", tags=["library"], dependencies=[Depends(require_roles(*ANY_ROLE))])
+def export_playwright(status: Optional[TestCaseStatus] = Query(default=None)) -> Response:
+    return Response(
+        content=to_playwright(db.list_test_cases(status=status)),
+        media_type="text/plain",
+        headers={"Content-Disposition": "attachment; filename=test-cases.spec.ts"},
+    )
+
+
+@app.post(
+    "/api/v1/requirements/quality",
+    response_model=RequirementQualityResponse,
+    tags=["generate"],
+    dependencies=[Depends(require_roles(*ANY_ROLE))],
+)
+def requirement_quality(req: RequirementQualityRequest) -> RequirementQualityResponse:
+    """Deterministic testability check on requirement text, before generation."""
+    return analyze_requirement_quality(req.requirement_text)
 
 MAX_SPEC_BYTES = 5 * 1024 * 1024  # 5 MB
 

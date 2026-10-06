@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { TestCaseType } from "../types";
 import { ALL_TEST_TYPES } from "../types";
+import { checkRequirementQuality, type RequirementQuality } from "../api/client";
 
 interface Props {
   onGenerate: (requirementText: string, requirementId: string, types: TestCaseType[]) => void;
@@ -15,6 +16,8 @@ const SAMPLE_REQUIREMENT =
 export function RequirementInput({ onGenerate, isLoading }: Props) {
   const [requirementText, setRequirementText] = useState("");
   const [requirementId, setRequirementId] = useState("REQ-001");
+  const [quality, setQuality] = useState<RequirementQuality | null>(null);
+  const [qualityError, setQualityError] = useState<string | null>(null);
   const [selectedTypes, setSelectedTypes] = useState<Set<TestCaseType>>(
     new Set(ALL_TEST_TYPES)
   );
@@ -37,6 +40,16 @@ export function RequirementInput({ onGenerate, isLoading }: Props) {
     onGenerate(requirementText.trim(), requirementId.trim() || "REQ-001", [
       ...selectedTypes,
     ]);
+  }
+
+  async function runQualityCheck() {
+    setQualityError(null);
+    try {
+      setQuality(await checkRequirementQuality(requirementText));
+    } catch (err) {
+      setQuality(null);
+      setQualityError(err instanceof Error ? err.message : "Check failed.");
+    }
   }
 
   return (
@@ -67,6 +80,34 @@ export function RequirementInput({ onGenerate, isLoading }: Props) {
       >
         Use sample requirement
       </button>
+      <button
+        type="button"
+        className="link-button"
+        disabled={!requirementText.trim()}
+        onClick={runQualityCheck}
+      >
+        Check testability
+      </button>
+      {qualityError && <div className="error-banner">{qualityError}</div>}
+      {quality && (
+        <div className="quality-result" role="status">
+          <strong>
+            Testability {quality.score}/100 ({quality.verdict})
+          </strong>
+          {quality.findings.length === 0 ? (
+            <p>No issues found.</p>
+          ) : (
+            <ul>
+              {quality.findings.map((f, i) => (
+                <li key={i}>
+                  [{f.severity}] {f.message}
+                  {f.excerpt && <em> "{f.excerpt}"</em>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <fieldset className="type-checkboxes">
         <legend>Test case types to generate</legend>

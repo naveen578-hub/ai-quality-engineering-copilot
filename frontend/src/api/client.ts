@@ -220,12 +220,41 @@ export async function fetchRequirementAnalysis(): Promise<RequirementAnalysisRes
 /** Server-side export requires auth, so — unlike a plain <a href> — this
  * fetches with the bearer token attached and triggers the download from
  * the resulting blob. */
-export async function downloadExport(format: "csv" | "json", status?: TestCaseStatus): Promise<void> {
+export type ExportFormat = "csv" | "json" | "gherkin" | "playwright";
+const EXPORT_FILENAMES: Record<ExportFormat, string> = {
+  csv: "test-cases.csv",
+  json: "test-cases.json",
+  gherkin: "test-cases.feature",
+  playwright: "test-cases.spec.ts",
+};
+
+export interface QualityFinding {
+  severity: "high" | "medium" | "low";
+  code: string;
+  message: string;
+  excerpt: string;
+}
+export interface RequirementQuality {
+  score: number;
+  verdict: string;
+  findings: QualityFinding[];
+}
+
+export async function checkRequirementQuality(requirementText: string): Promise<RequirementQuality> {
+  const res = await apiFetch("/api/v1/requirements/quality", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ requirement_text: requirementText }),
+  });
+  return parseJsonOrThrow<RequirementQuality>(res);
+}
+
+export async function downloadExport(format: ExportFormat, status?: TestCaseStatus): Promise<void> {
   const params = status ? `?status=${encodeURIComponent(status)}` : "";
   const res = await apiFetch(`/api/v1/export/${format}${params}`);
   if (!res.ok) throw new Error(`Export failed (${res.status})`);
   const blob = await res.blob();
-  triggerBlobDownload(blob, `test-cases.${format}`);
+  triggerBlobDownload(blob, EXPORT_FILENAMES[format]);
 }
 
 // ---- Phase 3: OpenAPI-driven API test generation ----

@@ -73,6 +73,8 @@ function AuthenticatedApp({
   ];
 
   const [activeTab, setActiveTab] = useState<TopLevelTab>("generate");
+  const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.id === activeTab));
+  const activeLabel = tabs[activeIndex].label;
   const [inputMode, setInputMode] = useState<GenerateSubMode>("paste");
   const [testCases, setTestCases] = useState<TestCase[]>([]);
   const [visualResult, setVisualResult] = useState<VisualCompareResponse | null>(null);
@@ -156,14 +158,12 @@ function AuthenticatedApp({
     <div className="app">
       <header>
         <div className="header-top-row">
-          <h1>AI Quality Engineering Copilot</h1>
+          <div>
+            <p className="eyebrow">{String(activeIndex + 1).padStart(2, "0")} / {String(tabs.length).padStart(2, "0")} · {activeLabel.toUpperCase()}</p>
+            <h1>AI Quality Engineering Copilot</h1>
+          </div>
           <div className="user-badge">
             {(testCases.length > 0 || visualResult || executionResults.length > 0) && <button type="button" className="small-button" onClick={() => downloadCombinedQaReport({ testCases, visual: visualResult ?? undefined, executionResults })}>Export combined QA report</button>}
-            <span className="citation-tag">{username}</span>
-            <span className={`status-pill status-${role === "admin" ? "approved" : "draft"}`}>{role}</span>
-            <button type="button" className="small-button" onClick={onLogout}>
-              Sign out
-            </button>
           </div>
         </div>
         <p className="subtitle">
@@ -182,24 +182,37 @@ function AuthenticatedApp({
         </p>
       </header>
 
-      <nav className="top-level-tabs" role="tablist">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            className={activeTab === tab.id ? "tab-active" : ""}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </nav>
+      <aside className="rail">
+        <div className="rail-brand"><span className="brand-mark">AQ</span><div><strong>QE Copilot</strong><small>CONTROL ROOM</small></div></div>
+        <nav className="top-level-tabs" role="tablist" aria-orientation="vertical">
+          {tabs.map((tab, index) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              className={activeTab === tab.id ? "tab-active" : ""}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              <span className="tab-index">{String(index + 1).padStart(2, "0")}</span>{tab.label}
+            </button>
+          ))}
+        </nav>
+        <div className="rail-user">
+          <div className="rail-user-row"><span className="rail-avatar">{username.slice(0, 1).toUpperCase()}</span><div><strong>{username}</strong><small>{role.toUpperCase()}</small></div></div>
+          <button type="button" className="small-button" onClick={onLogout}>Sign out</button>
+        </div>
+      </aside>
 
       <main>
         {activeTab === "generate" && (
           <>
+            <section className="pitwall" aria-label="Session telemetry">
+              <div className="pit-tile"><span>ENGINE</span><strong>{mode === "llm" ? "LLM" : mode === "mock" ? "MOCK" : "--"}</strong><small>generation mode</small></div>
+              <div className="pit-tile"><span>EMBEDDINGS</span><strong>{embeddingMode === "unknown" ? "--" : embeddingMode.toUpperCase()}</strong><small>retrieval tier</small></div>
+              <div className="pit-tile pit-hot"><span>CASES</span><strong>{testCases.length}</strong><small>generated this session</small></div>
+              <div className="pit-tile"><span>CHECKS</span><strong>{executionResults.length}</strong><small>{executionResults.filter((r) => r.critical && r.status !== "passed" && r.status !== "skipped").length} critical failing</small></div>
+            </section>
             {!canWrite && (
               <p className="hint-text">
                 Your role ({role}) can view generated results but not generate new ones — ask an

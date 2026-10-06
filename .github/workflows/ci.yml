@@ -80,6 +80,73 @@ jobs:
       - name: Build
         run: npm run build
 
+  accessibility:
+    name: Browser accessibility audit (axe-core)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Start API
+        env:
+          QE_COPILOT_JWT_SECRET: ci-test-secret-not-for-prod
+          QE_COPILOT_EMBEDDING_MODE: mock
+          QE_COPILOT_DB_PATH: /tmp/qe-accessibility.db
+        run: |
+          unset OPENAI_API_KEY
+          PYTHONPATH=. uvicorn backend.api.main:app --host 127.0.0.1 --port 8000 > /tmp/qe-api.log 2>&1 &
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8000/health > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/qe-api.log
+          exit 1
+
+      - name: Run axe accessibility audit
+        working-directory: frontend
+        env:
+          CI: "true"
+          QE_COPILOT_JWT_SECRET: ci-test-secret-not-for-prod
+          QE_COPILOT_EMBEDDING_MODE: mock
+        run: npx playwright test
+
+      - name: Upload accessibility report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: accessibility-report
+          path: |
+            frontend/test-results/accessibility-report.json
+            frontend/test-results/playwright-report.json
+          if-no-files-found: warn
+          retention-days: 30
+
   # Runs only if both the backend and frontend jobs above build/test cleanly on
   # a real, tracked base image — a lighter-weight substitute for actually
   # building and smoke-testing the Docker images in CI (left as a follow-up;

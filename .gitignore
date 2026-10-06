@@ -19,4 +19,5 @@ frontend/build/
 .DS_Store
 *.tsbuildinfo
 frontend/.vite/
+frontend/test-results/
 data/

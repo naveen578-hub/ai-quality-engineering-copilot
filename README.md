@@ -91,6 +91,15 @@ sample data.
   `GET /api/v1/export/json`), filterable by status — this is the
   server-side counterpart to the client-side "export what's on screen" CSV
   button from Phase 1.
+- **Automation-ready export**: `GET /api/v1/export/gherkin` (BDD `.feature`,
+  Given/When/Then with type, priority and requirement tags) and
+  `GET /api/v1/export/playwright` (Playwright Test skeleton with one
+  `test.step` per step; a starting point, not runnable as-is). Both accept
+  `?status=approved`.
+- **Requirement testability check** (`POST /api/v1/requirements/quality`,
+  "Check testability" button on the Generate tab): deterministic heuristics
+  that flag vague terms, missing negative paths, missing numbers/actors and
+  compound statements before you generate from a weak requirement.
 - 8 additional passing Pytest tests covering the save/edit/approve/delete
   lifecycle, status filtering, both export formats, traceability-matrix
   correctness (including a requirement that's fully covered and two that
