@@ -7,16 +7,18 @@ RAG + LLM engineering for QE workflows, using only synthetic healthcare-style
 sample data.
 
 > **Status: Phases 1–4 functionally complete, including both Phase 2
-> follow-ups.** Document upload, RAG with per-test-case chunk citations, a
-> real local embedding model tier (no API key needed), a reviewable
-> test-case library, requirements traceability, duplicate/conflict
-> detection, OpenAPI-driven API test generation, SQL validation query
-> generation, authentication/RBAC, PII masking, retry/usage tracking, an
-> automated RAG evaluation harness, and Docker/CI configuration are all in
-> place. Backend tests (61), an evaluation harness, and a live-browser e2e
-> suite (21 checks) all pass. Docker Compose has been built and smoke-tested
-> with both containers healthy. Public demo deployment is a manual step (see
-> [Roadmap](#roadmap)).
+> follow-ups, plus two Phase 5 additions.** Document upload, RAG with
+> per-test-case chunk citations, a real local embedding model tier (no API
+> key needed), a reviewable test-case library, requirements traceability,
+> duplicate/conflict detection, requirement-change impact analysis,
+> OpenAPI-driven API test generation, SQL validation query generation,
+> authentication/RBAC, PII masking, retry/usage tracking, an automated RAG
+> evaluation harness, test-health/flakiness analytics, and Docker/CI
+> configuration are all in place. Backend tests (94), an evaluation harness,
+> and a live-browser e2e suite (21 checks) all pass, alongside a zero-violation
+> accessibility audit across all 14 views. Docker Compose has been built and
+> smoke-tested with both containers healthy. Public demo deployment is a
+> manual step (see [Roadmap](#roadmap)).
 
 ## What works right now
 
@@ -541,7 +543,7 @@ ai-quality-engineering-copilot/
 │   ├── models/         # Pydantic schemas + db.py (SQLite: test cases, users, usage log)
 │   ├── rag/            # extractor, chunker, embeddings, ChromaDB store, ingest, OpenAPI parser
 │   ├── Dockerfile
-│   └── tests/          # Pytest suite (61 tests: generation, RAG, library/traceability,
+│   └── tests/          # Pytest suite (94 tests: generation, RAG, library/traceability,
 │                       #   API/SQL gen, concurrency regression, auth/RBAC boundaries,
 │                       #   PII guardrail, RAG eval, embedding-mode fallback)
 ├── frontend/            # React + TypeScript UI (login-gated, role-aware)
@@ -583,8 +585,6 @@ ai-quality-engineering-copilot/
 - [x] SQL validation query generation
 - [x] Duplicate/conflicting requirement detection (heuristic, documented limits)
 - [x] Requirements-traceability matrix
-- [x] Requirement-change impact review (stable-filename revisions, explicit IDs, review marker independent of case status)
-- [x] Test-health history and heuristic flaky/failing classification (explicit identity, idempotent CI batches, run detail)
 - [x] CSV/JSON export (client-side for on-screen results; server-side for the saved library)
 - [x] Approve/edit workflow for generated tests (save, inline edit, approve/reject, delete)
 
@@ -600,6 +600,10 @@ ai-quality-engineering-copilot/
   healthy backend/frontend containers)
 - [ ] Public demo deployment (synthetic data only) — the one item that genuinely requires
       a human with cloud/hosting credentials; see note below
+
+### Phase 5: QA pain-point extensions
+- [x] Requirement-change impact review (stable-filename revisions, explicit IDs, review marker independent of case status)
+- [x] Test-health/flakiness analytics (explicit identity, idempotent CI batches, heuristic history and run detail)
 
 **Note on Langfuse:** the original plan called for Langfuse specifically.
 What's built instead is a minimal custom equivalent (endpoint, tokens,
