@@ -482,6 +482,57 @@ class TestHealthDetail(BaseModel):
     history: List[TestRunHistoryItem]
 
 
+class TriageClassification(str, Enum):
+    product_defect = "product_defect"
+    automation_issue = "automation_issue"
+    test_data_problem = "test_data_problem"
+    environment_failure = "environment_failure"
+    unclassified = "unclassified"
+
+
+class FailureTriageRecord(BaseModel):
+    test_run_id: Optional[int] = Field(default=None, gt=0)
+    test_case_db_id: Optional[int] = Field(default=None, gt=0)
+    test_name: str = Field(..., min_length=1, max_length=300)
+    failed_assertion: str = Field(..., min_length=1, max_length=4000)
+    stack_trace: Optional[str] = Field(default=None, max_length=20000)
+    error_message: Optional[str] = Field(default=None, max_length=4000)
+    original_requirement: Optional[str] = Field(default=None, max_length=20000)
+    known_flaky_fields: List[str] = Field(default_factory=list, max_length=20)
+
+    @field_validator("test_name", "failed_assertion")
+    @classmethod
+    def required_text_not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("value cannot be blank")
+        return value.strip()
+
+    @field_validator("known_flaky_fields")
+    @classmethod
+    def flaky_fields_not_blank(cls, values: List[str]) -> List[str]:
+        cleaned = [value.strip() for value in values if value and value.strip()]
+        return list(dict.fromkeys(cleaned))
+
+
+class FailureTriageRequest(BaseModel):
+    failures: List[FailureTriageRecord] = Field(..., min_length=1, max_length=100)
+
+
+class FailureTriageResult(BaseModel):
+    triage_result_id: int
+    test_run_id: Optional[int] = None
+    test_name: str
+    classification: TriageClassification
+    confidence: float = Field(..., ge=0, le=1)
+    justification: str
+    evidence_snippet: Optional[str] = None
+    requirement_reference: Optional[str] = None
+
+
+class FailureTriageResponse(BaseModel):
+    results: List[FailureTriageResult]
+
+
 # ---- Phase 4: authentication and roles ----
 
 

@@ -141,6 +141,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_test_runs_batch_key
 ON test_runs(run_batch_id, test_key) WHERE test_key IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_test_runs_case_time ON test_runs(test_case_db_id, recorded_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_test_runs_key_time ON test_runs(test_key, recorded_at DESC, id DESC);
+
+CREATE TABLE IF NOT EXISTS triage_results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    test_run_id INTEGER REFERENCES test_runs(id) ON DELETE CASCADE,
+    classification TEXT NOT NULL,
+    confidence REAL NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
+    evidence_snippet TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_triage_results_run ON triage_results(test_run_id, created_at DESC);
 """
 
 
@@ -287,6 +297,7 @@ def reset() -> None:
         conn.execute("DELETE FROM requirement_impacts")
         conn.execute("DELETE FROM requirement_snapshots")
         conn.execute("DELETE FROM requirement_documents")
+        conn.execute("DELETE FROM triage_results")
         conn.execute("DELETE FROM test_runs")
         conn.execute("DELETE FROM test_run_batches")
 
@@ -532,6 +543,67 @@ def get_test_case_identity(test_case_db_id: int) -> Optional[dict]:
     if row is None:
         return None
     return {"test_case_db_id": row["db_id"], "test_case_public_id": row["public_id"], "name": row["title"]}
+
+
+def get_failure_triage_context(
+    test_run_id: Optional[int] = None,
+    test_case_db_id: Optional[int] = None,
+) -> Optional[dict]:
+    if test_run_id is not None:
+        with _connect() as conn:
+            row = conn.execute(
+                """SELECT r.id AS test_run_id, r.test_case_db_id, c.title,
+                          c.expected_result, c.requirement_reference
+                   FROM test_runs r LEFT JOIN test_cases c ON c.db_id = r.test_case_db_id
+                   WHERE r.id = ?""",
+                (test_run_id,),
+            ).fetchone()
+        if row is None:
+            raise ValueError(f"test_run_id {test_run_id} does not exist")
+        if test_case_db_id is not None and row["test_case_db_id"] != test_case_db_id:
+            raise ValueError("test_case_db_id does not match the supplied test_run_id")
+        if row["test_case_db_id"] is None:
+            return None
+        return dict(row)
+
+    if test_case_db_id is None:
+        return None
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT db_id AS test_case_db_id, title, expected_result, requirement_reference "
+            "FROM test_cases WHERE db_id = ?",
+            (test_case_db_id,),
+        ).fetchone()
+    if row is None:
+        raise ValueError(f"test_case_db_id {test_case_db_id} does not exist")
+    return dict(row)
+
+
+def save_failure_triage_results(results: list[dict]) -> list[int]:
+    created_at = _now()
+    result_ids = []
+    with _connect() as conn:
+        for result in results:
+            if result["test_run_id"] is not None:
+                exists = conn.execute(
+                    "SELECT 1 FROM test_runs WHERE id = ?", (result["test_run_id"],)
+                ).fetchone()
+                if exists is None:
+                    raise ValueError(f"test_run_id {result['test_run_id']} does not exist")
+            cursor = conn.execute(
+                """INSERT INTO triage_results
+                   (test_run_id, classification, confidence, evidence_snippet, created_at)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (
+                    result["test_run_id"],
+                    result["classification"].value,
+                    result["confidence"],
+                    result["evidence_snippet"],
+                    created_at,
+                ),
+            )
+            result_ids.append(int(cursor.lastrowid))
+    return result_ids
 
 
 def reset_test_runs() -> None:

@@ -76,6 +76,9 @@ from backend.models.schemas import (
     ExecutionBatchResponse,
     RestExecutionRequest,
     SqlExecutionRequest,
+    FailureTriageRequest,
+    FailureTriageResponse,
+    FailureTriageResult,
     TestHealthDetail,
     TestHealthSummary,
     TestRunIngestRequest,
@@ -194,6 +197,68 @@ def ingest_test_runs(payload: TestRunIngestRequest) -> TestRunIngestResponse:
         run_batch_id=payload.run_batch_id,
         accepted_count=accepted_count,
         idempotent_replay=idempotent_replay,
+    )
+
+
+@app.post(
+    "/api/v1/triage",
+    response_model=FailureTriageResponse,
+    tags=["failure-triage"],
+    dependencies=[Depends(require_roles(*WRITE_ROLES))],
+)
+def triage_failures(payload: FailureTriageRequest) -> FailureTriageResponse:
+    from backend.generators.failure_triage import classify_failure
+
+    pending_results = []
+    response_results = []
+    for failure in payload.failures:
+        try:
+            context = db.get_failure_triage_context(failure.test_run_id, failure.test_case_db_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+        classified = classify_failure(failure)
+        evidence = classified["evidence_snippet"]
+        source_text = "\n".join(
+            part for part in (failure.failed_assertion, failure.error_message, failure.stack_trace) if part
+        )
+        if evidence is not None and evidence not in source_text:
+            from backend.models.schemas import TriageClassification
+
+            classified = {
+                "classification": TriageClassification.unclassified,
+                "confidence": 0.0,
+                "justification": "Evidence verification failed; no classification was assigned.",
+                "evidence_snippet": None,
+            }
+
+        pending_results.append(
+            {
+                "test_run_id": failure.test_run_id,
+                **classified,
+            }
+        )
+        response_results.append((failure, context, classified))
+
+    try:
+        result_ids = db.save_failure_triage_results(pending_results)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    return FailureTriageResponse(
+        results=[
+            FailureTriageResult(
+                triage_result_id=result_id,
+                test_run_id=failure.test_run_id,
+                test_name=failure.test_name,
+                classification=classified["classification"],
+                confidence=classified["confidence"],
+                justification=classified["justification"],
+                evidence_snippet=classified["evidence_snippet"],
+                requirement_reference=(context or {}).get("requirement_reference"),
+            )
+            for result_id, (failure, context, classified) in zip(result_ids, response_results)
+        ]
     )
 
 

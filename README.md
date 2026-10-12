@@ -165,6 +165,20 @@ one file and doesn't touch the API routes or generators above it.
   an incorrect validation query someone might actually run is worse than no
   query. Every generated query flags its column-name guess as a heuristic to
   verify against the real schema.
+- **Failure triage** (`POST /api/v1/triage`) — classifies a batch of execution
+  failures as product defect, automation issue, test data problem, environment
+  failure, or `unclassified`. This path is deterministic and works without an
+  LLM/API key. It recognizes `NoSuchElementException` and
+  `ElementNotInteractableException` as automation signatures; connection
+  refused, timeout, and explicit HTTP 5xx signatures as environment failures;
+  expected/actual business-value mismatches as possible product defects; and
+  `NullPointerException` naming a caller-designated known flaky field as a test
+  data problem. Each classified result quotes an exact input line and verifies
+  that quote against the submitted failure text before saving it in SQLite's
+  `triage_results` table. This confirms the quote appears in the submitted
+  text, but does not prove the line is authentic or causal. Unrecognized or ambiguous failures return
+  `unclassified` rather than guessing. An optional saved `test_run_id` or
+  `test_case_db_id` links the result to the library's requirement reference.
 - 13 additional passing tests (31 backend tests through this point) covering
   OpenAPI parsing, all four API test-case kinds, unknown-spec/endpoint error
   handling, and all six recognized SQL patterns plus the "nothing matched"
@@ -287,6 +301,10 @@ against it before the API returns a response.
 
 ## Setup
 
+Use Python 3.11 or 3.12 with the pinned backend dependencies. Python 3.11.7 is
+the version used for the verified backend test run. The pinned ChromaDB 0.5.15
+dependency may require a native `chroma-hnswlib` build under Python 3.13.
+
 ```bash
 git clone <this-repo>
 cd ai-quality-engineering-copilot
@@ -297,6 +315,12 @@ pip install -r backend/requirements.txt
 
 uvicorn backend.api.main:app --reload --port 8000
 ```
+
+On Windows with an Anaconda-derived environment, if importing ChromaDB causes a
+native ONNX Runtime access violation, install the version used in the verified
+Python 3.11 environment with `pip install onnxruntime==1.20.1` after installing
+`backend/requirements.txt`. This workaround was specific to that environment;
+other platforms may not need the pin.
 
 On first startup with no users in the database, a demo admin account is
 seeded automatically (`admin` / `changeme123` — logged as a warning so it's
