@@ -482,6 +482,39 @@ class TestHealthDetail(BaseModel):
     history: List[TestRunHistoryItem]
 
 
+class FlakinessCause(str, Enum):
+    timing_synchronization = "timing_synchronization"
+    environment_dependent = "environment_dependent"
+    unclassified = "unclassified"
+
+
+class FlakinessAnalysisStatus(str, Enum):
+    scored = "scored"
+    insufficient_data = "insufficient_data"
+
+
+class FlakinessScore(BaseModel):
+    test_case_db_id: Optional[int] = None
+    test_key: Optional[str] = None
+    test_name: str
+    analysis_status: FlakinessAnalysisStatus
+    flakiness_score: Optional[float] = Field(default=None, ge=0, le=1)
+    failure_rate: Optional[float] = Field(default=None, ge=0, le=1)
+    flip_rate: Optional[float] = Field(default=None, ge=0, le=1)
+    sample_size: int = Field(..., ge=0)
+    suspected_cause: Optional[FlakinessCause] = None
+    cause_detail: str
+    last_computed_at: str
+
+
+class FlakinessAnalysisResponse(BaseModel):
+    results: List[FlakinessScore]
+
+
+class FlakinessScoresResponse(BaseModel):
+    results: List[FlakinessScore]
+
+
 class TriageClassification(str, Enum):
     product_defect = "product_defect"
     automation_issue = "automation_issue"

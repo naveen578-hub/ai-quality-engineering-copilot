@@ -79,6 +79,9 @@ from backend.models.schemas import (
     FailureTriageRequest,
     FailureTriageResponse,
     FailureTriageResult,
+    FlakinessAnalysisResponse,
+    FlakinessScore,
+    FlakinessScoresResponse,
     TestHealthDetail,
     TestHealthSummary,
     TestRunIngestRequest,
@@ -259,6 +262,44 @@ def triage_failures(payload: FailureTriageRequest) -> FailureTriageResponse:
             )
             for result_id, (failure, context, classified) in zip(result_ids, response_results)
         ]
+    )
+
+
+@app.post(
+    "/api/v1/flaky-tests/analyze",
+    response_model=FlakinessAnalysisResponse,
+    tags=["flaky-tests"],
+    dependencies=[Depends(require_roles(*WRITE_ROLES))],
+)
+def analyze_flaky_tests() -> FlakinessAnalysisResponse:
+    from backend.execution.flakiness import score_flakiness
+
+    results = []
+    for identity in db.list_test_run_identities():
+        case_id = identity.get("test_case_db_id")
+        test_key = identity.get("test_key")
+        history = db.get_test_run_history(test_case_db_id=case_id, test_key=test_key)
+        peer_rates = db.get_test_run_batch_peer_failure_rates(test_case_db_id=case_id, test_key=test_key)
+        computed = score_flakiness(identity, history, peer_rates)
+        stored = db.save_flakiness_score(computed)
+        results.append(FlakinessScore(**stored))
+    return FlakinessAnalysisResponse(results=results)
+
+
+@app.get(
+    "/api/v1/flaky-tests/scores",
+    response_model=FlakinessScoresResponse,
+    tags=["flaky-tests"],
+    dependencies=[Depends(require_roles(*ANY_ROLE))],
+)
+def get_flakiness_scores(
+    test_case_db_id: Optional[int] = Query(default=None, gt=0),
+    test_key: Optional[str] = Query(default=None, min_length=1, max_length=300),
+) -> FlakinessScoresResponse:
+    if test_case_db_id is not None and test_key is not None:
+        raise HTTPException(status_code=422, detail="provide at most one test identity")
+    return FlakinessScoresResponse(
+        results=[FlakinessScore(**score) for score in db.list_flakiness_scores(test_case_db_id, test_key)]
     )
 
 

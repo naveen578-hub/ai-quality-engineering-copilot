@@ -179,6 +179,22 @@ one file and doesn't touch the API routes or generators above it.
   text, but does not prove the line is authentic or causal. Unrecognized or ambiguous failures return
   `unclassified` rather than guessing. An optional saved `test_run_id` or
   `test_case_db_id` links the result to the library's requirement reference.
+- **Flaky-test analysis** (`POST /api/v1/flaky-tests/analyze`, read results from
+  `GET /api/v1/flaky-tests/scores`) — computes scores from existing `test_runs`
+  history without an LLM or duplicated raw-history table. The score combines
+  failure rate and pass/fail flip rate; at least five executed runs are required,
+  and `skipped` runs do not count. `failed`, `blocked`, and `error` count as
+  not-passed for scoring, while their distinct counts remain in `cause_detail`.
+  Duration medians identify timing/synchronization signals (not-passed runs over
+  1.5x the passed-run median); sibling not-passed rates in run batches identify
+  environment signals when elevated against the same test's passing-batch
+  baseline. If neither signal is clear, the cause is `unclassified`. Treating
+  `blocked` as not-passed is a v1 simplification: a block may reflect a
+  dependency gate rather than flaky test behavior.
+
+  Order-dependent analysis is deferred: `test_runs.id` provides an insertion-
+  order tie-breaker, but insertion order is not guaranteed execution order. A
+  trustworthy sequence/order field would be required before adding that signal.
 - 13 additional passing tests (31 backend tests through this point) covering
   OpenAPI parsing, all four API test-case kinds, unknown-spec/endpoint error
   handling, and all six recognized SQL patterns plus the "nothing matched"

@@ -151,6 +151,27 @@ CREATE TABLE IF NOT EXISTS triage_results (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_triage_results_run ON triage_results(test_run_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS flakiness_scores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    test_case_db_id INTEGER REFERENCES test_cases(db_id) ON DELETE CASCADE,
+    test_key TEXT,
+    flakiness_score REAL CHECK (flakiness_score IS NULL OR (flakiness_score >= 0 AND flakiness_score <= 1)),
+    failure_rate REAL CHECK (failure_rate IS NULL OR (failure_rate >= 0 AND failure_rate <= 1)),
+    flip_rate REAL CHECK (flip_rate IS NULL OR (flip_rate >= 0 AND flip_rate <= 1)),
+    sample_size INTEGER NOT NULL CHECK (sample_size >= 0),
+    analysis_status TEXT NOT NULL CHECK (analysis_status IN ('scored', 'insufficient_data')),
+    suspected_cause TEXT CHECK (suspected_cause IS NULL OR suspected_cause IN (
+        'timing_synchronization', 'environment_dependent', 'unclassified'
+    )),
+    cause_detail TEXT NOT NULL,
+    last_computed_at TEXT NOT NULL,
+    CHECK ((test_case_db_id IS NOT NULL AND test_key IS NULL) OR (test_case_db_id IS NULL AND test_key IS NOT NULL))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_flakiness_scores_case
+ON flakiness_scores(test_case_db_id) WHERE test_case_db_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_flakiness_scores_key
+ON flakiness_scores(test_key) WHERE test_key IS NOT NULL;
 """
 
 
@@ -294,6 +315,7 @@ def reset() -> None:
     """Wipes all persisted test cases. Used by tests."""
     with _connect() as conn:
         conn.execute("DELETE FROM test_cases")
+        conn.execute("DELETE FROM flakiness_scores")
         conn.execute("DELETE FROM requirement_impacts")
         conn.execute("DELETE FROM requirement_snapshots")
         conn.execute("DELETE FROM requirement_documents")
@@ -518,6 +540,119 @@ def list_test_run_identities() -> list[dict]:
         return summaries
 
 
+def get_test_run_batch_peer_failure_rates(
+    test_case_db_id: Optional[int] = None,
+    test_key: Optional[str] = None,
+) -> list[dict]:
+    if (test_case_db_id is None) == (test_key is None):
+        raise ValueError("provide exactly one test identity")
+    identity_column = "test_case_db_id" if test_case_db_id is not None else "test_key"
+    identity_value = test_case_db_id if test_case_db_id is not None else test_key
+    with _connect() as conn:
+        rows = conn.execute(
+            f"""SELECT target.id, target.status, target.run_batch_id,
+                       SUM(CASE WHEN peer.status != 'skipped' THEN 1 ELSE 0 END) AS peer_executed_count,
+                       SUM(CASE WHEN peer.status IN ('failed', 'blocked', 'error') THEN 1 ELSE 0 END) AS peer_not_passed_count
+                FROM test_runs AS target
+                LEFT JOIN test_runs AS peer
+                  ON peer.run_batch_id = target.run_batch_id AND peer.id != target.id
+                WHERE target.{identity_column} = ?
+                GROUP BY target.id
+                ORDER BY target.recorded_at DESC, target.id DESC""",
+            (identity_value,),
+        ).fetchall()
+    return [
+        {
+            "id": row["id"],
+            "status": row["status"],
+            "run_batch_id": row["run_batch_id"],
+            "peer_failure_rate": (
+                row["peer_not_passed_count"] / row["peer_executed_count"]
+                if row["peer_executed_count"]
+                else None
+            ),
+        }
+        for row in rows
+    ]
+
+
+def save_flakiness_score(score: dict) -> dict:
+    if (score["test_case_db_id"] is None) == (score["test_key"] is None):
+        raise ValueError("provide exactly one test identity")
+    identity_column = "test_case_db_id" if score["test_case_db_id"] is not None else "test_key"
+    identity_value = score[identity_column]
+    values = (
+        score["flakiness_score"],
+        score["failure_rate"],
+        score["flip_rate"],
+        score["sample_size"],
+        score["analysis_status"].value,
+        score["suspected_cause"].value if score["suspected_cause"] else None,
+        score["cause_detail"],
+        _now(),
+    )
+    with _connect() as conn:
+        existing = conn.execute(
+            f"SELECT id FROM flakiness_scores WHERE {identity_column} = ?",
+            (identity_value,),
+        ).fetchone()
+        if existing:
+            conn.execute(
+                f"""UPDATE flakiness_scores
+                    SET flakiness_score = ?, failure_rate = ?, flip_rate = ?, sample_size = ?,
+                        analysis_status = ?, suspected_cause = ?, cause_detail = ?, last_computed_at = ?
+                    WHERE {identity_column} = ?""",
+                (*values, identity_value),
+            )
+            score_id = existing["id"]
+        else:
+            cursor = conn.execute(
+                """INSERT INTO flakiness_scores
+                   (test_case_db_id, test_key, flakiness_score, failure_rate, flip_rate, sample_size,
+                    analysis_status, suspected_cause, cause_detail, last_computed_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    score["test_case_db_id"],
+                    score["test_key"],
+                    *values[:-1],
+                    values[-1],
+                ),
+            )
+            score_id = int(cursor.lastrowid)
+        row = conn.execute(
+            """SELECT s.*, COALESCE(c.title, s.test_key) AS test_name
+               FROM flakiness_scores AS s
+               LEFT JOIN test_cases AS c ON c.db_id = s.test_case_db_id
+               WHERE s.id = ?""",
+            (score_id,),
+        ).fetchone()
+    return dict(row)
+
+
+def list_flakiness_scores(
+    test_case_db_id: Optional[int] = None,
+    test_key: Optional[str] = None,
+) -> list[dict]:
+    if test_case_db_id is not None and test_key is not None:
+        raise ValueError("provide at most one test identity")
+    where = ""
+    params: tuple = ()
+    if test_case_db_id is not None:
+        where, params = "WHERE s.test_case_db_id = ?", (test_case_db_id,)
+    elif test_key is not None:
+        where, params = "WHERE s.test_key = ?", (test_key,)
+    with _connect() as conn:
+        rows = conn.execute(
+            f"""SELECT s.*, COALESCE(c.title, s.test_key) AS test_name
+                FROM flakiness_scores AS s
+                LEFT JOIN test_cases AS c ON c.db_id = s.test_case_db_id
+                {where}
+                ORDER BY s.test_case_db_id, s.test_key""",
+            params,
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
 def get_test_run_history(test_case_db_id: Optional[int] = None, test_key: Optional[str] = None) -> list[dict]:
     if (test_case_db_id is None) == (test_key is None):
         raise ValueError("provide exactly one test identity")
@@ -608,6 +743,7 @@ def save_failure_triage_results(results: list[dict]) -> list[int]:
 
 def reset_test_runs() -> None:
     with _connect() as conn:
+        conn.execute("DELETE FROM flakiness_scores")
         conn.execute("DELETE FROM test_runs")
         conn.execute("DELETE FROM test_run_batches")
 
