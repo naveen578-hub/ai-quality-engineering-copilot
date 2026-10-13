@@ -38,6 +38,70 @@ SAMPLE_OPENAPI_SPEC = {
     },
 }
 
+GENERATOR_EDGE_SPEC = {
+    "openapi": "3.0.0",
+    "info": {"title": "Task API", "version": "1.0.0"},
+    "paths": {
+        "/tasks": {
+            "get": {
+                "operationId": "listTasks",
+                "summary": "List tasks",
+                "parameters": [{
+                    "name": "offset",
+                    "in": "query",
+                    "required": False,
+                    "schema": {"type": "integer", "minimum": 0},
+                }],
+                "responses": {"200": {"description": "OK"}, "401": {"description": "Unauthorized"}},
+            },
+            "post": {
+                "operationId": "createTask",
+                "summary": "Create a task",
+                "requestBody": {
+                    "required": True,
+                    "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TaskCreateRequest"}}},
+                },
+                "responses": {
+                    "201": {"description": "Created"},
+                    "401": {"description": "Unauthorized"},
+                    "404": {"description": "Not found"},
+                },
+            },
+        },
+        "/tasks/{taskId}": {
+            "get": {
+                "operationId": "getTask",
+                "summary": "Get a task by UUID",
+                "parameters": [{
+                    "name": "taskId",
+                    "in": "path",
+                    "required": True,
+                    "schema": {"type": "string", "format": "uuid"},
+                }],
+                "responses": {
+                    "200": {"description": "OK"},
+                    "401": {"description": "Unauthorized"},
+                    "404": {"description": "Not found"},
+                },
+            }
+        },
+    },
+    "components": {
+        "schemas": {
+            "TaskCreateRequest": {
+                "type": "object",
+                "required": ["title", "priority"],
+                "properties": {
+                    "title": {"type": "string", "minLength": 3, "maxLength": 80},
+                    "priority": {"type": "integer", "minimum": 1, "maximum": 5},
+                    "status": {"type": "string", "enum": ["open", "closed"]},
+                    "email": {"type": "string", "format": "email"},
+                },
+            }
+        }
+    },
+}
+
 
 @pytest.fixture(autouse=True)
 def reset_openapi_store():
@@ -104,6 +168,59 @@ def test_generate_api_test_cases_covers_positive_negative_boundary_auth(client):
     assert "negative" in types
     assert "boundary" in types
     assert all(tc["requirement_reference"].startswith("OpenAPI: GET /patients/{memberId}") for tc in test_cases)
+
+
+def test_api_generation_respects_parameter_locations_and_unknown_bounds(client):
+    upload = client.post(
+        "/api/v1/openapi/specs",
+        files={"file": ("tasks.json", json.dumps(GENERATOR_EDGE_SPEC).encode(), "application/json")},
+    ).json()
+    response = client.post(
+        "/api/v1/openapi/generate-test-cases",
+        json={"spec_id": upload["spec_id"], "endpoint_ids": ["GET /tasks", "GET /tasks/{taskId}"]},
+    )
+    assert response.status_code == 200, response.text
+    cases = response.json()["test_cases"]
+    list_cases = [case for case in cases if "GET /tasks (" in case["requirement_reference"]]
+    path_cases = [case for case in cases if "GET /tasks/{taskId} (" in case["requirement_reference"]]
+
+    assert not any("omitting" in " ".join(case["steps"]).lower() for case in list_cases)
+    assert all("?" not in " ".join(case["steps"]) for case in list_cases)
+    assert any("no documented maximum" in " ".join(case["steps"]).lower() for case in list_cases if case["type"] == "boundary")
+    assert not any("omitting" in " ".join(case["steps"]).lower() for case in path_cases)
+    assert any("not-a-uuid" in " ".join(case["steps"]) for case in path_cases if case["type"] == "negative")
+    validation_case = next(case for case in path_cases if "not-a-uuid" in " ".join(case["steps"]))
+    assert "401" not in validation_case["expected_result"]
+    assert "404" not in validation_case["expected_result"]
+    assert "exact validation status is not documented" in validation_case["expected_result"]
+
+
+def test_api_generation_covers_request_body_constraints_and_schema_negatives(client):
+    upload = client.post(
+        "/api/v1/openapi/specs",
+        files={"file": ("tasks.json", json.dumps(GENERATOR_EDGE_SPEC).encode(), "application/json")},
+    ).json()
+    response = client.post(
+        "/api/v1/openapi/generate-test-cases",
+        json={"spec_id": upload["spec_id"], "endpoint_ids": ["POST /tasks"]},
+    )
+    assert response.status_code == 200, response.text
+    cases = response.json()["test_cases"]
+
+    required_case = next(case for case in cases if "omitting" in " ".join(case["steps"]).lower())
+    boundary_case = next(case for case in cases if case["type"] == "boundary")
+    schema_negative = next(case for case in cases if "outside enum" in " ".join(case["steps"]))
+    boundary_text = " ".join(boundary_case["steps"])
+    negative_text = " ".join(schema_negative["steps"])
+
+    assert "title" in " ".join(required_case["steps"])
+    assert "priority" in " ".join(required_case["steps"])
+    assert "401" not in required_case["expected_result"]
+    assert "404" not in required_case["expected_result"]
+    assert "title" in boundary_text and "minLength=3" in boundary_text and "maxLength=80" in boundary_text
+    assert "priority" in boundary_text and "minimum=1" in boundary_text and "maximum=5" in boundary_text
+    assert "status=" in negative_text and "outside enum" in negative_text
+    assert "email=not-an-email" in negative_text and "invalid email" in negative_text
 
 
 def test_generate_api_test_cases_unknown_spec_returns_404(client):

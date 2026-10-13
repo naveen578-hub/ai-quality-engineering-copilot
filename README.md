@@ -150,12 +150,18 @@ one file and doesn't touch the API routes or generators above it.
 - **API test generation from OpenAPI/Swagger** (`POST /api/v1/openapi/specs`
   to upload a JSON or YAML spec, `POST /api/v1/openapi/generate-test-cases`
   to generate) — parses paths, methods, parameters (including min/max and
-  required flags), request bodies, response codes, and security
-  requirements, then generates one positive case per endpoint plus
-  negative/boundary/auth-negative cases wherever the spec actually supports
-  them (e.g. a boundary case only appears if a parameter has a min/max).
-  Template-based, not LLM-based — the spec already states the facts, so
-  there's nothing to infer, and it works with zero API key.
+  required flags and formats), request-body schemas (including local component
+  schema references, required fields, bounds, enums, and formats), response
+  codes, and security requirements. It generates positive cases plus only
+  applicable negative, boundary, and auth-negative cases: path parameters are
+  tested with invalid documented formats rather than impossible omissions;
+  body and non-path constraints drive missing-field and schema-violation cases;
+  and request-body numeric/string bounds are included alongside parameter
+  bounds. Unknown one-sided bounds are described as undocumented rather than
+  shown as placeholders. Validation cases use a declared 400/422 when present;
+  they do not borrow unrelated 401/404 statuses, and say when the exact
+  validation status is unspecified. Template-based, not LLM-based — the spec
+  supplies the endpoint facts, so this works with zero API key.
 - **SQL validation query generation** (`POST /api/v1/sql-validations/generate`)
   — turns a requirement's stated data constraint into a SQL query that finds
   *violating* rows. Mock mode is pattern-based (length ranges, min length,
